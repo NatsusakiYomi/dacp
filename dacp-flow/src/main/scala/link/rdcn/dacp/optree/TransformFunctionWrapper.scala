@@ -42,13 +42,13 @@ object TransformFunctionWrapper {
       case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionID"))
       case LangTypeV2.FILE_REPOSITORY_BUNDLE.name => {
         val command = jo.getJSONArray("command").toList.asScala
-        val outPutFilePath = jo.getString("outPutFilePath")
+        val outPutFilePath = jo.getJSONArray("outPutFilePath").toList.asScala
         val containerName = jo.getString("containerName")
         val hostPath = if(jo.has("hostPath")) Some(jo.getString("hostPath")) else None
         val containerPath = if(jo.has("containerPath")) Some(jo.getString("containerPath")) else None
         val imageName = if(jo.has("imageName")) Some(jo.getString("imageName")) else None
 
-        FileRepositoryBundle(command.map(_.asInstanceOf[String]), outPutFilePath
+        FileRepositoryBundle(command.map(_.asInstanceOf[String]), outPutFilePath.map(_.asInstanceOf[String])
           , containerName, hostPath, containerPath, imageName)
       }
     }
@@ -304,7 +304,7 @@ case class RepositoryOperator(functionID: String) extends TransformFunctionWrapp
 
 case class FileRepositoryBundle(
                                  command: Seq[String],
-                                 outPutFilePath: String,
+                                 outPutFilePath: Seq[String],
                                  containerName: String,
                                  hostPath: Option[String] = None,
                                  containerPath: Option[String] = None,
@@ -315,7 +315,7 @@ case class FileRepositoryBundle(
   override def toJson: JSONObject = {
     val jo = new JSONObject
     jo.put("command", new JSONArray(command))
-    jo.put("outPutFilePath", outPutFilePath)
+    jo.put("outPutFilePath", new JSONArray(outPutFilePath))
     jo.put("containerName", containerName)
     hostPath.map(jo.put("hostPath", _))
     containerPath.map(jo.put("containerPath", _))
@@ -325,14 +325,13 @@ case class FileRepositoryBundle(
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
     //允许指定运行容器，避免重复启动相同容器
-//    if(!DockerExec.isContainerRunning(containerName)){
-//      DockerExec.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
-//    }
+    if(!DockerExec.isContainerRunning(containerName)){
+      DockerExec.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
+    }
     //默认输出为一个DataFrame
-    val outPutFilePipe = RowFilePipe.createEmptyFile(outPutFilePath)
+    val outPutFilePipe = outPutFilePath.map(path=>RowFilePipe.createEmptyFile(path))
     DockerExec.nonInteractiveExec(command.toArray, containerName) //"jyg-container"
-//    Thread.sleep(2000)
-//    DataFrame.empty()
-    outPutFilePipe.dataFrame()
+    outPutFilePipe.map(pipe=>pipe.dataFrame())
+    DataFrame.empty()
   }
 }

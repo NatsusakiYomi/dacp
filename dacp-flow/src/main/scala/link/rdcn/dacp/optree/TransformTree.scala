@@ -113,7 +113,9 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
     if(flowCtx.isAsyncEnabled){
       val future:Future[DataFrame] = Future {
         try {
-          transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx)
+          val df = inputs.map(_.execute(ctx))
+          Thread.sleep(2000)
+          transformFunctionWrapper.applyToDataFrames(df, flowCtx)
         } catch {
           case t: Throwable =>
             t.printStackTrace()

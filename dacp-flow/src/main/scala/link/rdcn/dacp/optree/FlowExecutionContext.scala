@@ -24,7 +24,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
 
   def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame]): Unit = {
     asyncResults.put(transformOp, future)
-    val resultDataFrame = Await.result(future, 1.minute)
+//    val resultDataFrame = Await.result(future, 1.minute)
     future.onComplete {
       case Success(df) =>
       case Failure(e) =>
