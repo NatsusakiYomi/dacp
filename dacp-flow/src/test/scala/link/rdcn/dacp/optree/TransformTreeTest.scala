@@ -102,8 +102,10 @@ class TransformTreeTest {
   @Test
   def TransformTreeSimpleFIFOFlowTest(): Unit = {
     println("transformTree execution started...")
-    transformTreeGully.execute(ctx)
-    Await.result(ctx.getAsyncResult(transformTreeGully).get,Duration.Inf)
+//    transformTreeGully.execute(ctx)
+//    Await.result(ctx.getAsyncResult(transformTreeGully).get,Duration.Inf)
+    transformTreeHydro.execute(ctx)
+    Await.result(ctx.getAsyncResult(transformTreeHydro).get,Duration.Inf)
 //    transformTreeOverlap.execute(ctx)
 //    Await.result(ctx.getAsyncResult(transformTreeOverlap).get,Duration.Inf)// Assuming this returns Unit
     println("transformTree execution finished.")

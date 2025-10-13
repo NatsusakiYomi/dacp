@@ -114,7 +114,7 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
       val future:Future[DataFrame] = Future {
         try {
           val df = inputs.map(_.execute(ctx))
-          Thread.sleep(2000)
+          Thread.sleep(4000)
           transformFunctionWrapper.applyToDataFrames(df, flowCtx)
         } catch {
           case t: Throwable =>
