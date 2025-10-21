@@ -1,11 +1,14 @@
 package link.rdcn.dacp.optree
 
-import link.rdcn.dacp.optree.fifo.{DockerExec, RowFilePipe}
+import link.rdcn.dacp.optree.fifo.{DockerContainer, DockerExecute, RowFilePipe}
 import link.rdcn.operation.{ExecutionContext, FunctionSerializer, FunctionWrapper, GenericFunctionCall}
-import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row}
+import link.rdcn.struct.ValueType.StringType
+import link.rdcn.struct.{ClosableIterator, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.util.DataUtils
 import link.rdcn.util.DataUtils.getDataFrameByStream
 import org.json.{JSONArray, JSONObject}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.net.{URL, URLClassLoader}
@@ -27,7 +30,7 @@ trait TransformFunctionWrapper extends FunctionWrapper {
     applyToDataFrames(input.asInstanceOf[Seq[DataFrame]], ctx.asInstanceOf[FlowExecutionContext])
   }
 
-  def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame
+  def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame]
 }
 
 object TransformFunctionWrapper {
@@ -41,15 +44,13 @@ object TransformFunctionWrapper {
       case LangTypeV2.CPP_BIN.name => CppBin(jo.getString("cppPath"))
       case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionID"))
       case LangTypeV2.FILE_REPOSITORY_BUNDLE.name => {
-        val command = jo.getJSONArray("command").toList.asScala
-        val outPutFilePath = jo.getJSONArray("outPutFilePath").toList.asScala
-        val containerName = jo.getString("containerName")
-        val hostPath = if(jo.has("hostPath")) Some(jo.getString("hostPath")) else None
-        val containerPath = if(jo.has("containerPath")) Some(jo.getString("containerPath")) else None
-        val imageName = if(jo.has("imageName")) Some(jo.getString("imageName")) else None
 
-        FileRepositoryBundle(command.map(_.asInstanceOf[String]), outPutFilePath.map(_.asInstanceOf[String])
-          , containerName, hostPath, containerPath, imageName)
+        val command = jo.getJSONArray("command").toList.asScala.map(_.toString)
+        val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala.map(_.toString)
+        val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala.map(_.toString)
+        val dockerContainer = DockerContainer.fromJson(jo.getJSONObject("dockerContainer"))
+
+        FileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer)
       }
     }
   }
@@ -70,7 +71,7 @@ case class PythonCode(code: String, batchSize: Int = 100) extends TransformFunct
 
   override def toString(): String = "PythonCodeNode Function"
 
-  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     val stream = inputs.head.mapIterator[Iterator[Row]](iter => {
       new Iterator[Row] {
         private val grouped: Iterator[Seq[Row]] = iter.grouped(batchSize)
@@ -105,7 +106,7 @@ case class PythonCode(code: String, batchSize: Int = 100) extends TransformFunct
         }
       }
     })
-    getDataFrameByStream(stream)
+    Seq(getDataFrameByStream(stream))
   }
 }
 
@@ -124,10 +125,10 @@ case class JavaBin(serializedBase64: String) extends TransformFunctionWrapper {
 
   override def toString(): String = "Java_bin Function"
 
-  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     inputs.length match {
-      case 1 => genericFunctionCall.transform(inputs.head).asInstanceOf[DataFrame]
-      case 2 => genericFunctionCall.transform((inputs.head, inputs.last)).asInstanceOf[DataFrame]
+      case 1 => Seq(genericFunctionCall.transform(inputs.head).asInstanceOf[DataFrame])
+      case 2 => Seq(genericFunctionCall.transform((inputs.head, inputs.last)).asInstanceOf[DataFrame])
       case other => throw new IllegalArgumentException(s"Unsupported inputs DataFrames length: $other")
     }
   }
@@ -141,9 +142,9 @@ case class JavaCode(javaCodeString: String) extends TransformFunctionWrapper {
     jo.put("javaCodeString", javaCodeString)
   }
 
-  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     //TODO 支持对一组DataFrame的处理
-    input.head.mapIterator[DataFrame](iter => {
+    Seq(input.head.mapIterator[DataFrame](iter => {
       val clazzMap = FunctionSerializer.deserialize(Base64.getDecoder.decode(javaCodeString)).asInstanceOf[java.util.Map[String, Array[Byte]]]
       val classLoader = new ByteArrayClassLoader(clazzMap.asScala.toMap, Thread.currentThread().getContextClassLoader)
       val mainClassName = clazzMap.asScala.keys.find(!_.contains("$"))
@@ -152,7 +153,7 @@ case class JavaCode(javaCodeString: String) extends TransformFunctionWrapper {
       val instance = clazz.getDeclaredConstructor().newInstance()
       val method = clazz.getMethod("transform", classOf[DataFrame])
       method.invoke(instance, getDataFrameByStream(iter)).asInstanceOf[DataFrame]
-    })
+    }))
   }
 
   private class ByteArrayClassLoader(classBytes: Map[String, Array[Byte]], parent: ClassLoader) extends ClassLoader(parent) {
@@ -183,7 +184,7 @@ case class PythonBin(functionName: String, whlPath: String, batchSize: Int = 100
     jo.put("whlPath", whlPath)
   }
   //TODO 支持对一组DataFrame的处理
-  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     val jep = ctx.getSubInterpreter(Paths.get(ctx.pythonHome,
         LangTypeV2.PYTHON_BIN.name+UUID.randomUUID()).toString, whlPath)
       .getOrElse(throw new IllegalArgumentException("Python interpreter is required"))
@@ -198,7 +199,7 @@ case class PythonBin(functionName: String, whlPath: String, batchSize: Int = 100
         result.asScala.map(Row.fromJavaList(_))
       })
     })
-    DataUtils.getDataFrameByStream(stream)
+    Seq(DataUtils.getDataFrameByStream(stream))
   }
 }
 
@@ -210,7 +211,7 @@ case class JavaJar(jarPath: String, functionName: String) extends TransformFunct
     jo.put("functionName", functionName)
   }
 
-  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     val jarFile = new java.io.File(jarPath)
     val urls = Array(jarFile.toURI.toURL)
     val parentLoader = getClass.getClassLoader
@@ -219,11 +220,11 @@ case class JavaJar(jarPath: String, functionName: String) extends TransformFunct
       case "Transformer11" =>
         val serviceLoader = ServiceLoader.load(classOf[link.rdcn.dacp.recipe.Transformer11], pluginLoader).iterator()
         if (!serviceLoader.hasNext) throw new Exception(s"No Transformer11 implementation class was found in this jar $jarPath")
-        serviceLoader.next().transform(input.head)
+        Seq(serviceLoader.next().transform(input.head))
       case "Transformer21" =>
         val serviceLoader = ServiceLoader.load(classOf[link.rdcn.dacp.recipe.Transformer21], pluginLoader).iterator()
         if (!serviceLoader.hasNext) throw new Exception(s"No Transformer21 implementation class was found in this jar $jarPath")
-        serviceLoader.next().transform(input.head, input.last)
+        Seq(serviceLoader.next().transform(input.head, input.last))
       case other => throw new IllegalArgumentException(s"Unsupported input function type: $other")
     }
   }
@@ -255,14 +256,14 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
   override def toJson: JSONObject = new JSONObject().put("type", LangTypeV2.CPP_BIN.name)
     .put("cppPath", cppPath)
 
-  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
+  override def applyToDataFrames(input: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     val pb = new ProcessBuilder(cppPath)
     val process = pb.start()
     val writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
     val reader = new BufferedReader(new InputStreamReader(process.getInputStream))
     val inputDataFrame = input.head
     val inputSchema = inputDataFrame.schema
-    inputDataFrame.mapIterator[DataFrame](iter => {
+    Seq(inputDataFrame.mapIterator[DataFrame](iter => {
       val stream = new Iterator[String] {
         override def hasNext: Boolean = iter.hasNext
 
@@ -287,7 +288,7 @@ case class CppBin(cppPath: String) extends TransformFunctionWrapper {
         process.destroy()
       })
       DefaultDataFrame(r._2, autoClosingIterator)
-    })
+    }))
   }
 }
 
@@ -296,42 +297,81 @@ case class RepositoryOperator(functionID: String) extends TransformFunctionWrapp
   override def toJson: JSONObject = new JSONObject().put("type", LangTypeV2.REPOSITORY_OPERATOR.name)
     .put("functionID", functionID)
 
-  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-    ctx.getRepositoryClient().getOrElse(throw new Exception("Operator repository client not found. Please configure the client settings."))
-      .executeOperator(functionID, inputs, ctx)
+  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
+    Seq(ctx.getRepositoryClient().getOrElse(throw new Exception("Operator repository client not found. Please configure the client settings."))
+      .executeOperator(functionID, inputs, ctx))
   }
 }
 
 case class FileRepositoryBundle(
                                  command: Seq[String],
-                                 outPutFilePath: Seq[String],
-                                 containerName: String,
-                                 hostPath: Option[String] = None,
-                                 containerPath: Option[String] = None,
-                                 imageName: Option[String] = None
+                                 inputFilePath: Seq[String],
+                                 outputFilePath: Seq[String],
+                                 dockerContainer: DockerContainer
                                )
   extends TransformFunctionWrapper {
 
   override def toJson: JSONObject = {
     val jo = new JSONObject
-    jo.put("command", new JSONArray(command))
-    jo.put("outPutFilePath", new JSONArray(outPutFilePath))
-    jo.put("containerName", containerName)
-    hostPath.map(jo.put("hostPath", _))
-    containerPath.map(jo.put("containerPath", _))
-    imageName.map(jo.put("imageName", _))
+    jo.put("type", LangTypeV2.FILE_REPOSITORY_BUNDLE.name)
+    jo.put("command", new JSONArray(command.asJava))
+    jo.put("inputFilePath", new JSONArray(inputFilePath.asJava))
+    jo.put("outputFilePath", new JSONArray(outputFilePath.asJava))
+    jo.put("dockerContainer", dockerContainer.toJson())
     jo
   }
 
-  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): DataFrame = {
-    //允许指定运行容器，避免重复启动相同容器
-    if(!DockerExec.isContainerRunning(containerName)){
-      DockerExec.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
-    }
-    //默认输出为一个DataFrame
-    val outPutFilePipe = outPutFilePath.map(path=>RowFilePipe.createEmptyFile(path))
-    DockerExec.nonInteractiveExec(command.toArray, containerName) //"jyg-container"
-    outPutFilePipe.map(pipe=>pipe.dataFrame())
+  def deleteFiFOFile(): Unit = {
+    outputFilePath.foreach(filePath => {
+      Runtime.getRuntime.exec(Array("rm", "-rf", filePath))
+    })
+  }
+
+  def runOperator(): DataFrame = {
+    DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
     DataFrame.empty()
   }
+
+  override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrameFIFO] = {
+    dockerContainer.start()
+    //创建fifo文件
+    var inputFuture:Future[RowFilePipe] = null
+    (inputFilePath ++ outputFilePath).foreach(path=>RowFilePipe.fromFilePath(path))
+    if(inputs.isInstanceOf[DataFrameFIFO]) {
+      val inputFile = RowFilePipe(new java.io.File(inputs.head.asInstanceOf[DataFrameFIFO].inputFilePath))
+      inputFuture = inputFile.copyToFile(outputFilePath.head)
+    }
+    //"jyg-container"
+    //outputFilePath.head -> 下游inputFilePath.head
+//    inputFuture.onFailure {
+//      case e => println(s"后台管道启动或运行时失败: $e")
+//      // 你可能需要在这里处理错误，比如取消 Docker 任务
+//    }
+
+    //TODO 支持输出多个文件
+    inputFilePath.map(DataFrameFIFO(_))
+  }
+}
+
+case class DataFrameFIFO(inputFilePath: String) extends DataFrame{
+
+  lazy val df = RowFilePipe(new java.io.File(inputFilePath)).dataFrame()
+
+  override val schema: StructType = StructType.empty.add("content", StringType)
+
+  override def mapIterator[T](f: ClosableIterator[Row] => T): T = ???
+
+  override def map(f: Row => Row): DataFrame = ???
+
+  override def filter(f: Row => Boolean): DataFrame = ???
+
+  override def select(columns: String*): DataFrame = ???
+
+  override def limit(n: Int): DataFrame = ???
+
+  override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
+
+  override def foreach(f: Row => Unit): Unit = ???
+
+  override def collect(): List[Row] = ???
 }

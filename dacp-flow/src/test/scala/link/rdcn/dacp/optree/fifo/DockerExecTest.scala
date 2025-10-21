@@ -70,23 +70,23 @@ class DockerExecTest {
 
     try {
       // 1. 验证启动前：isContainerRunning 应返回 false
-      assertFalse(DockerExec.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
+      assertFalse(DockerExecute.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
         s"启动前, 临时容器 '$LIFECYCLE_TEST_CONTAINER_NAME' 不应处于运行状态")
 
       // 2. 执行被测方法：startContainer
-      containerId = DockerExec.startContainer(HOST_DIR, CONTAINER_DIR, LIFECYCLE_TEST_CONTAINER_NAME, LIFECYCLE_TEST_IMAGE)
+      containerId = DockerExecute.startContainer(HOST_DIR, CONTAINER_DIR, LIFECYCLE_TEST_CONTAINER_NAME, LIFECYCLE_TEST_IMAGE)
       assertNotNull(containerId, "startContainer 方法应返回一个非空的容器 ID")
       assertNotEquals("", containerId.trim, "返回的容器 ID 不应是空字符串")
 
       // 3. 验证启动后：isContainerRunning 应返回 true
-      assertTrue(DockerExec.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
+      assertTrue(DockerExecute.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
         s"调用 startContainer 后, 临时容器 '$LIFECYCLE_TEST_CONTAINER_NAME' 应处于运行状态")
 
       // 4. 手动停止容器，以测试 isContainerRunning 在容器停止后的行为
       dockerClient.stopContainerCmd(containerId).exec()
 
       // 5. 验证停止后：isContainerRunning 应再次返回 false
-      assertFalse(DockerExec.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
+      assertFalse(DockerExecute.isContainerRunning(LIFECYCLE_TEST_CONTAINER_NAME),
         s"容器停止后, isContainerRunning 方法应返回 false")
 
     } finally {
@@ -100,11 +100,11 @@ class DockerExecTest {
    */
   @Test
   def testNonInteractiveEchoExec(): Unit = {
-    assertTrue(DockerExec.isContainerRunning(JYG_CONTAINER_NAME), s"执行测试前, 容器 '$JYG_CONTAINER_NAME' 必须是运行状态")
+    assertTrue(DockerExecute.isContainerRunning(JYG_CONTAINER_NAME), s"执行测试前, 容器 '$JYG_CONTAINER_NAME' 必须是运行状态")
 
     val command = Array("echo", "Hello from jyg-container")
     val expectedOutput = "Hello from jyg-container"
-    val fullOutput = DockerExec.nonInteractiveExec(command, JYG_CONTAINER_NAME)
+    val fullOutput = DockerExecute.nonInteractiveExec(command, JYG_CONTAINER_NAME)
 
     assertTrue(fullOutput.contains(expectedOutput), s"输出内容应包含期望的字符串 '$expectedOutput'")
   }
@@ -114,10 +114,10 @@ class DockerExecTest {
    */
   @Test
   def testNonInteractivePythonScriptExec(): Unit = {
-    assertTrue(DockerExec.isContainerRunning(JYG_CONTAINER_NAME), s"执行测试前, 容器 '$JYG_CONTAINER_NAME' 必须是运行状态")
+    assertTrue(DockerExecute.isContainerRunning(JYG_CONTAINER_NAME), s"执行测试前, 容器 '$JYG_CONTAINER_NAME' 必须是运行状态")
 
     val command = Array("python", TEST_SCRIPT_CONTAINER_PATH)
-    val fullOutput = DockerExec.nonInteractiveExec(command, JYG_CONTAINER_NAME)
+    val fullOutput = DockerExecute.nonInteractiveExec(command, JYG_CONTAINER_NAME)
     assertTrue(fullOutput.nonEmpty, s"Python 脚本应具有输出")
 
   }

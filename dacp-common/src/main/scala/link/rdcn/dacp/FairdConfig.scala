@@ -48,7 +48,7 @@ class FairdConfig() extends DftpConfig {
 
   override def privateKey: Option[PrivateKey] = Some(KeyBasedAuthUtils.loadPrivateKey(Paths.get(fairdHome, privateKeyPath).toAbsolutePath.toString))
 
-  override def logFilePath: String = loggingFileName
+  def logFilePath: String = loggingFileName
 
   override def rootLogLevel: String = loggingLevelRoot
 

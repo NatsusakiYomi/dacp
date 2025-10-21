@@ -27,7 +27,7 @@ class FunctionWrapperTest {
   def pythonBinTest(): Unit = {
     val whlPath = Paths.get(fairdHome + "lib", "link-0.1-py3-none-any.whl").toString
     val pythonBin = PythonBin("normalize",whlPath)
-    val df = pythonBin.applyToDataFrames(dataFrames, ctx)
+    val df = pythonBin.applyToDataFrames(dataFrames, ctx).head
     df.foreach(row => {
       assert(row._1 == 0.33)
       assert(row._2 == 0.67)

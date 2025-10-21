@@ -97,6 +97,7 @@ class DataProviderTest extends DataProvider {
    * @return 数据流源
    */
   override def getDataStreamSource(dataFrameName: String): DataStreamSource = new DataStreamSource {
+
     override def rowCount: Long = -1
 
     override def schema: StructType = StructType.empty.add("col1", StringType)
@@ -122,6 +123,9 @@ class DataProviderTest extends DataProvider {
    * @return 数据帧的DataFrameStatistics
    */
   override def getStatistics(dataFrameName: String): DataFrameStatistics = ???
+
+
+
 }
 
 case class TokenAuthenticatedUser(token: String) extends UserPrincipal
@@ -135,7 +139,7 @@ class AuthorProviderTest extends AuthProvider {
   override def authenticate(credentials: Credentials): UserPrincipal = {
     val token: String = {
       credentials match {
-        case UsernamePassword("Admin", "Ano") => "1"
+        case UsernamePassword("test", "test") => "1"
         case _ => "2"
       }
     }

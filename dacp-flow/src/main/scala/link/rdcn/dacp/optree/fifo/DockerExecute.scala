@@ -2,15 +2,48 @@ package link.rdcn.dacp.optree.fifo
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.CreateContainerResponse
-import com.github.dockerjava.api.model.{Bind, Volume, Container}
+import com.github.dockerjava.api.model.{Bind, Container, Volume}
 import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilder}
 import com.github.dockerjava.api.model.{Frame, StreamType}
 import com.github.dockerjava.core.command.ExecStartResultCallback
+import org.json.{JSONArray, JSONObject}
 
 import scala.collection.JavaConverters._
 
-object DockerExec {
+case class DockerContainer(
+                            containerName: String,
+                            hostPath: Option[String] = None,
+                            containerPath: Option[String] = None,
+                            imageName: Option[String] = None
+                          ){
+  def start(): String = {
+    if(!DockerExecute.isContainerRunning(containerName)){
+      DockerExecute.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
+    } else containerName
+  }
 
+  def toJson(): JSONObject = {
+    val jo = new JSONObject
+    jo.put("containerName", containerName)
+    hostPath.map(jo.put("hostPath", _))
+    containerPath.map(jo.put("containerPath", _))
+    imageName.map(jo.put("imageName", _))
+    jo
+  }
+}
+
+object DockerContainer{
+  def fromJson(jo: JSONObject): DockerContainer = {
+    DockerContainer(jo.getString("containerName"),
+      Option(jo.optString("hostPath", null)),
+      Option(jo.optString("containerPath", null)),
+      Option(jo.optString("imageName", null))
+    )
+  }
+}
+
+
+object DockerExecute {
 
   /**
    * 检查指定名称的容器是否正在运行

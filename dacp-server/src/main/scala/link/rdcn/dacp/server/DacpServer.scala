@@ -370,6 +370,8 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
 
     override val fairdHome: String = getFairdConfig().fairdHome
 
+    override def isAsyncEnabled: Boolean = true
+
     //TODO pythonHome from env
     override def pythonHome: String = getFairdConfig().pythonHome
 

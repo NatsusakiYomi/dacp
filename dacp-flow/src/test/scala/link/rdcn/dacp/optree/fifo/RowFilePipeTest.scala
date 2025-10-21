@@ -130,7 +130,7 @@ class RowFilePipeTest {
       Files.delete(pipeFile) // createTempFile 会创建一个常规文件，先删除它
 
       // 使用 String 路径测试
-      val pipeFromString = RowFilePipe.createEmptyFile(pipeFile.toString)
+      val pipeFromString = RowFilePipe.fromFilePath(pipeFile.toString)
       assertTrue(Files.exists(pipeFile), "createEmptyFile(String) 未能创建文件")
       // 注意：通过标准 Java/Scala API 很难直接判断一个文件是否为 FIFO。
       // 在这里，我们相信如果 `mkfifo` 命令没有报错且文件存在，那么它就是正确的。
@@ -138,7 +138,7 @@ class RowFilePipeTest {
       assertFalse(Files.exists(pipeFile), "delete() 未能删除由 String 路径创建的文件")
 
       // 使用 File 对象测试
-      val pipeFromFile = RowFilePipe.createEmptyFile(pipeFile.toFile)
+      val pipeFromFile = RowFilePipe.fromFile(pipeFile.toFile)
       assertTrue(Files.exists(pipeFile), "createEmptyFile(File) 未能创建文件")
       pipeFromFile.delete()
       assertFalse(Files.exists(pipeFile), "delete() 未能删除由 File 对象创建的文件")

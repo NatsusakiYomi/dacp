@@ -39,13 +39,13 @@ class RepositoryClient(host: String = "localhost", port: Int = 8088) extends Ope
     info.get("type") match {
       case LangTypeV2.JAVA_JAR.name =>
         val op = JavaJar(filePath, functionName)
-        op.applyToDataFrames(inputs, ctx)
+        op.applyToDataFrames(inputs, ctx).head
       case LangTypeV2.CPP_BIN.name =>
         val op = CppBin(filePath)
-        op.applyToDataFrames(inputs, ctx)
+        op.applyToDataFrames(inputs, ctx).head
       case LangTypeV2.PYTHON_BIN.name =>
         val op = PythonBin(functionName,filePath)
-        op.applyToDataFrames(inputs, ctx)
+        op.applyToDataFrames(inputs, ctx).head
       case _ => throw new IllegalArgumentException(s"Unsupported operator type: ${info.get("type")}")
 
     }

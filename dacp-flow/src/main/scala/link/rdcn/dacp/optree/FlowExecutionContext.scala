@@ -6,9 +6,11 @@ import link.rdcn.struct.DataFrame
 import link.rdcn.user.Credentials
 
 import java.util.concurrent.ConcurrentHashMap
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.JavaConverters._
 
 /**
  * @Author renhao
@@ -19,22 +21,36 @@ import scala.concurrent.duration._
 trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
 
   private[this] val asyncResults = new ConcurrentHashMap[TransformOp, Future[DataFrame]]()
-  implicit protected val asyncExecutionContext: ExecutionContext =
-    ExecutionContext.fromExecutorService(java.util.concurrent.Executors.newWorkStealingPool(8))
+  private[this] val asyncResultsList =
+    new ConcurrentHashMap[TransformOp, ArrayBuffer[Thread]]()
 
-  def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame]): Unit = {
+  def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame],
+                         thread: Thread): Unit = {
     asyncResults.put(transformOp, future)
-//    val resultDataFrame = Await.result(future, 1.minute)
+    asyncResultsList.keys().asScala.foreach(key => {
+      if(key.asInstanceOf[TransformerNode].contain(transformOp.asInstanceOf[TransformerNode])){
+        asyncResultsList.get(key).append(thread)
+      }else {
+        val arr = new ArrayBuffer[Thread]()
+        arr.append(thread)
+        asyncResultsList.put(transformOp, arr)
+      }
+    })
+
     future.onComplete {
       case Success(df) =>
       case Failure(e) =>
         asyncResults.remove(transformOp)
         throw new Exception(s"TransformOp $transformOp failed", e)
-    }(asyncExecutionContext)
+    }
   }
 
   def getAsyncResult(transformOp: TransformOp): Option[Future[DataFrame]] = {
     Option(asyncResults.get(transformOp))
+  }
+
+  def getAsyncThreads(transformOp: TransformOp): Option[ArrayBuffer[Thread]] = {
+    Option(asyncResultsList.get(transformOp))
   }
 
   val fairdHome: String
