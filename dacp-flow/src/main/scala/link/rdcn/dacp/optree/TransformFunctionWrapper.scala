@@ -398,8 +398,6 @@ case class DataFrameFIFO(inputFilePath: String) extends DataFrame {
 
   override def limit(n: Int): DataFrame = ???
 
-  override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
-
   override def foreach(f: Row => Unit): Unit = ???
 
   override def collect(): List[Row] = ???

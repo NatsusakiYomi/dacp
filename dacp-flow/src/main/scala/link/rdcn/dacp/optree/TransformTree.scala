@@ -71,10 +71,10 @@ case class RemoteSourceProxyOp(url: String, certificate: String) extends Transfo
   override def toJson: JSONObject = new JSONObject().put("type", operationType)
     .put("baseUrl", baseUrl).put("path", path).put("token", certificate)
 
-  override def execute(ctx: ExecutionContext): DataFrame = {
+  override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
     require(ctx.isInstanceOf[FlowExecutionContext])
-    ctx.asInstanceOf[FlowExecutionContext].loadRemoteDataFrame(baseUrl, path, TokenAuth(certificate))
-      .getOrElse(throw new Exception(s"get remote DataFrame ${baseUrl+path} fail"))
+    Seq(ctx.asInstanceOf[FlowExecutionContext].loadRemoteDataFrame(baseUrl, path, TokenAuth(certificate))
+      .getOrElse(throw new Exception(s"get remote DataFrame ${baseUrl+path} fail")))
   }
 }
 
@@ -92,9 +92,9 @@ case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends Tran
       .put("input", ja)
   }
 
-  override def execute(ctx: ExecutionContext): DataFrame = {
+  override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
     transformOp.head.execute(ctx)
-    RowFilePipe.fromFilePath(filePath).dataFrame()
+    Seq(RowFilePipe.fromFilePath(filePath).dataFrame())
   }
 }
 
@@ -133,10 +133,10 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
       .put("input", ja)
   }
 
-  override def execute(ctx: ExecutionContext): DataFrame = {
+  override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
     if(flowCtx.isAsyncEnabled){
-      val result = transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx)
+      val result = transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
       var thread: Thread = null
       val future:Future[DataFrame] = Future {
         try {
@@ -149,9 +149,9 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
         }
       }
       flowCtx.registerAsyncResult(this, future, thread)
-      result.head
+      result
     }else{
-      transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx).head
+      transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
     }
   }
 }

@@ -86,7 +86,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
       dataFrameUrl => !authProviderWithKey.checkPermission(userPrincipal, getUrlPath(dataFrameUrl))
     ) match {
       case Some(dataFrameUrl) => response.sendError(403, s"access dataFrame ${dataFrameUrl} forbidden")
-      case None => response.sendDataFrame(transformTree.execute(ctx(transformTree)))
+      case None => response.sendDataFrame(transformTree.execute(ctx(transformTree)).head)
     }
   }
 
