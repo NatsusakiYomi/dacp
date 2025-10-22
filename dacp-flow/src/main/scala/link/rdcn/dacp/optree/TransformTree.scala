@@ -1,19 +1,15 @@
 package link.rdcn.dacp.optree
 
 import link.rdcn.client.UrlValidator
+import link.rdcn.dacp.optree.fifo.RowFilePipe
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.TokenAuth
-import link.rdcn.dacp.optree.fifo.RowFilePipe
 import org.json.{JSONArray, JSONObject}
 
 import scala.collection.JavaConverters.asScalaBufferConverter
-import scala.concurrent.{Await, Future}
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
-import scala.concurrent.duration._
-import scala.util.{Failure, Success}
+import scala.concurrent.Future
 
 /**
  * @Author renhao
@@ -140,12 +136,12 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
   override def execute(ctx: ExecutionContext): DataFrame = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
     if(flowCtx.isAsyncEnabled){
-      val result = transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx).head
+      val result = transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx)
       var thread: Thread = null
       val future:Future[DataFrame] = Future {
         try {
           thread = Thread.currentThread()
-          transformFunctionWrapper.asInstanceOf[FileRepositoryBundle].runOperator()
+          transformFunctionWrapper.asInstanceOf[FifoFileRepositoryBundle].runOperator()
         } catch {
           case t: Throwable =>
             t.printStackTrace()
@@ -153,7 +149,7 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
         }
       }
       flowCtx.registerAsyncResult(this, future, thread)
-      result
+      result.head
     }else{
       transformFunctionWrapper.applyToDataFrames(inputs.map(_.execute(ctx)), flowCtx).head
     }

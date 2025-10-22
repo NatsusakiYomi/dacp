@@ -134,6 +134,7 @@ class DataProviderTest extends DataProvider {
   }
 
   override def getSchema(dataFrameName: String): StructType = ???
+
 }
 
 case class TokenAuthenticatedUser(token: String) extends UserPrincipal
@@ -147,7 +148,7 @@ class AuthorProviderTest extends AuthProvider {
   override def authenticate(credentials: Credentials): UserPrincipal = {
     val token: String = {
       credentials match {
-        case UsernamePassword("Admin", "Ano") => "1"
+        case UsernamePassword("test", "test") => "1"
         case _ => "2"
       }
     }

@@ -2,19 +2,17 @@ package link.rdcn.dacp.optree.fifo
 
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
-import link.rdcn.util.DataUtils
 
 import java.io._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
 
-/**
- * @Author renhao
- * @Description:
- * @Data 2025/9/26 14:21
- * @Modified By:
- */
-case class RowFilePipe(file: File) extends FilePipe(file) {
+case class TempFilePipe(file: File) extends FilePipe(file) {
+
+  override def create(): Unit = {
+    if (!file.exists()) {
+      Runtime.getRuntime.exec(Array("touch", file.getAbsolutePath)).waitFor()
+    }
+  }
+
   def write(messages: Iterator[String]): Unit = {
     val writer = new PrintWriter(new FileWriter(file))
     try {
@@ -57,34 +55,22 @@ case class RowFilePipe(file: File) extends FilePipe(file) {
     ClosableIterator(iter)(() => {})
   }
 
-  def fromExistFile(sourceFile: File): RowFilePipe = {
-    write(DataUtils.getFileLines(sourceFile))
-    this
-  }
-
-  def copyToFile(path: String): Future[RowFilePipe] = {
-    Future {
-      val target = RowFilePipe(new File(path))
-      target.write(read())
-      target
-    }
-  }
 
   override def dataFrame(): DataFrame =
     DefaultDataFrame(StructType.empty.add("content", StringType),
       ClosableIterator(read().map(str => Row.fromSeq(Seq(str))))())
 }
 
-object RowFilePipe {
+object TempFilePipe {
 
-  def fromFilePath(path: String): RowFilePipe = {
-    val pipe = new RowFilePipe(new File(path))
+  def fromFilePath(path: String): TempFilePipe = {
+    val pipe = new TempFilePipe(new File(path))
     pipe.create()
     pipe
   }
 
-  def fromFile(file: File): RowFilePipe = {
-    val pipe = new RowFilePipe(file)
+  def fromFile(file: File): TempFilePipe = {
+    val pipe = new TempFilePipe(file)
     pipe.create()
     pipe
   }

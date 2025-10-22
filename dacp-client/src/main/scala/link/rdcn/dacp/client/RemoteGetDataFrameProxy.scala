@@ -66,6 +66,8 @@ case class RemoteGetDataFrameProxy(
   private lazy val schemaAndRows = getRows(operation.toJsonString)
 
   override def mapIterator[T](f: ClosableIterator[Row] => T): T = f(getRows(operation.toJsonString)._2)
+
+  override def reduce(f: ((Row, Row)) => Row): DataFrame = ???
 }
 
 

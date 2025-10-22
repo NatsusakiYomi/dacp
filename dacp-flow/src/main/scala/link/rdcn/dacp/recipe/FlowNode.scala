@@ -28,8 +28,17 @@ case class FifoFileBundleFlowNode(
                                    command: Seq[String],
                                    inputFilePath: Seq[String],
                                    outputFilePath: Seq[String],
-                                   dockerContainer: DockerContainer
+                                   dockerContainer: DockerContainer,
+                                   fileType: Int = FileType.FIFO_BUFFER
                                  ) extends FlowNode
+
+object FileType {
+  val FIFO_BUFFER = 1
+  // 命名管道或磁盘FIFO
+  val RAM_FILE = 2
+  // 纯内存文件
+  val MMAP_FILE = 3 // 内存映射文件
+}
 
 case class FifoFileFlowNode(filePath: String) extends FlowNode
 

@@ -7,8 +7,10 @@ import link.rdcn.user.Credentials
 
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.JavaConverters._
 
 /**
  * @Author renhao

@@ -1,6 +1,6 @@
 package link.rdcn.dacp.optree.fifo
 
-import org.json.{JSONArray, JSONObject}
+import org.json.JSONObject
 
 case class DockerContainer(
                             containerName: String,

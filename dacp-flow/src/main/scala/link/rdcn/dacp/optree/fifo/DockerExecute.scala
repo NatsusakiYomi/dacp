@@ -2,10 +2,9 @@ package link.rdcn.dacp.optree.fifo
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.CreateContainerResponse
-import com.github.dockerjava.api.model.{Bind, Container, Volume}
-import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilder}
-import com.github.dockerjava.api.model.{Frame, StreamType}
+import com.github.dockerjava.api.model._
 import com.github.dockerjava.core.command.ExecStartResultCallback
+import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilder}
 
 import scala.collection.JavaConverters._
 

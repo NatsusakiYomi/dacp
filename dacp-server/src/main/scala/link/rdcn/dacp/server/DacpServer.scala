@@ -5,7 +5,7 @@ import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
 import link.rdcn.dacp.ConfigKeys.{FAIRD_HOST_DOMAIN, FAIRD_HOST_NAME, FAIRD_HOST_PORT, FAIRD_HOST_POSITION, FAIRD_HOST_TITLE, FAIRD_TLS_CERT_PATH, FAIRD_TLS_ENABLED, FAIRD_TLS_KEY_PATH, LOGGING_FILE_NAME, LOGGING_LEVEL_ROOT, LOGGING_PATTERN_CONSOLE, LOGGING_PATTERN_FILE}
 import link.rdcn.dacp.{ConfigKeys, FairdConfig}
-import link.rdcn.dacp.optree.{FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
+import link.rdcn.dacp.optree.{FiFoFileNode, FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.dacp.provider.DataProvider
 import link.rdcn.dacp.receiver.DataReceiver
 import link.rdcn.dacp.struct.CookTicket
@@ -34,7 +34,7 @@ import scala.collection.JavaConverters.asScalaBufferConverter
  * @Data 2025/9/20 14:12
  * @Modified By:
  */
-class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authProvider: AuthProvider) extends Logging{
+class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authProvider: AuthProvider) extends Logging {
 
   private var fairdConfig: FairdConfig = _
   private val protocolScheme = "dacp"
@@ -51,7 +51,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
       } catch {
         case e: Exception => response.sendError(500, e.getMessage)
       }
-      response.send(CodecUtils.encodeString(new JSONObject().put("status","success").toString))
+      response.send(CodecUtils.encodeString(new JSONObject().put("status", "success").toString))
     }
 
     override def doAction(request: ActionRequest, response: ActionResponse): Unit =
@@ -84,9 +84,9 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
     val userPrincipal = request.getRequestUserPrincipal()
     transformTree.sourceUrlList.find(
       dataFrameUrl => !authProviderWithKey.checkPermission(userPrincipal, getUrlPath(dataFrameUrl))
-    )match {
+    ) match {
       case Some(dataFrameUrl) => response.sendError(403, s"access dataFrame ${dataFrameUrl} forbidden")
-      case None => response.sendDataFrame(transformTree.execute(ctx))
+      case None => response.sendDataFrame(transformTree.execute(ctx(transformTree)))
     }
   }
 
@@ -120,11 +120,11 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
       }
       case otherPath =>
         val userPrincipal = request.getUserPrincipal()
-        if(authProvider.checkPermission(userPrincipal, otherPath)){
+        if (authProvider.checkPermission(userPrincipal, otherPath)) {
           val dataStreamSource: DataStreamSource = dataProvider.getDataStreamSource(otherPath)
           val dataFrame: DataFrame = DefaultDataFrame(dataStreamSource.schema, dataStreamSource.iterator)
           response.sendDataFrame(dataFrame)
-        }else{
+        } else {
           response.sendError(403, s"access dataFrame $otherPath Forbidden")
         }
     }
@@ -159,8 +159,8 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
         val prefix: String = "/getDataFrameSize/"
         response.send(dataProvider.getDataStreamSource(name.replaceFirst(prefix, "")).rowCount.toString.getBytes("UTF-8"))
       case otherPath => response.sendError(400, s"Action $otherPath Invalid")
-      }
     }
+  }
 
 
   /**
@@ -244,9 +244,9 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
 
   private def getDataFrameDocumentJsonString(dataFrameName: String): String = {
     val document = dataProvider.getDocument(dataFrameName)
-    val schema = StructType.empty.add("SchemaUrl",StringType).add("DataFrameTitle", StringType).add("ColumnUrl", StringType).add("ColumnAlias", StringType).add("ColumnTitle", StringType)
+    val schema = StructType.empty.add("SchemaUrl", StringType).add("DataFrameTitle", StringType).add("ColumnUrl", StringType).add("ColumnAlias", StringType).add("ColumnTitle", StringType)
     val stream = getSchema(dataFrameName).columns.map(col => col.name).map(name => Seq(document.getSchemaURL(), document.getDataFrameTitle(), document.getColumnURL(name).getOrElse(""),
-      document.getColumnAlias(name).getOrElse(""), document.getColumnTitle(name).getOrElse("")))
+        document.getColumnAlias(name).getOrElse(""), document.getColumnTitle(name).getOrElse("")))
       .map(seq => link.rdcn.struct.Row.fromSeq(seq))
     val ja = new JSONArray()
     stream.map(_.toJsonObject(schema)).foreach(ja.put(_))
@@ -322,12 +322,10 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
   }
 
   private class DacpServerProducer(userAuthenticationService: AuthenticationService, dftpMethod: DftpMethodService)
-    extends DftpServer(userAuthenticationService, dftpMethod)
-  {
+    extends DftpServer(userAuthenticationService, dftpMethod) {
     this.setProtocolSchema(protocolScheme)
 
-    override def parseTicket(bytes: Array[Byte]): DftpTicket =
-    {
+    override def parseTicket(bytes: Array[Byte]): DftpTicket = {
       val BLOB_TICKET: Byte = 1
       val GET_TICKET: Byte = 2
       val COOK_TICKET: Byte = 3
@@ -348,21 +346,16 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
 
     override def getStreamByTicket(userPrincipal: UserPrincipal,
                                    ticket: Array[Byte],
-                                   response: GetResponse): Unit =
-    {
+                                   response: GetResponse): Unit = {
       val dftpTicket = parseTicket(ticket)
-      dftpTicket match
-      {
-        case CookTicket(ticketContent) =>
-        {
-          val cookRequest: CookRequest = new CookRequest
-          {
+      dftpTicket match {
+        case CookTicket(ticketContent) => {
+          val cookRequest: CookRequest = new CookRequest {
             override def getTransformTree: TransformOp = TransformTree.fromJsonString(ticketContent)
 
             override def getRequestUserPrincipal(): UserPrincipal = userPrincipal
           }
-          val cookResponse: CookResponse = new CookResponse
-          {
+          val cookResponse: CookResponse = new CookResponse {
             override def sendDataFrame(dataFrame: DataFrame): Unit =
               response.sendDataFrame(dataFrame)
 
@@ -376,28 +369,32 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
     }
   }
 
-  private def ctx = new FlowExecutionContext {
+  private def ctx(transformTree: TransformOp) = new FlowExecutionContext {
 
     override val fairdHome: String = getFairdConfig().fairdHome
 
-    override def isAsyncEnabled: Boolean = true
+    override def isAsyncEnabled: Boolean = transformTree match {
+      case _: FiFoFileNode => true
+      case other => false
+    }
 
     //TODO pythonHome from env
     override def pythonHome: String = getFairdConfig().pythonHome
 
     override def loadSourceDataFrame(dataFrameNameUrl: String): Option[DataFrame] = {
-      val resourcePath = if(dataFrameNameUrl.startsWith(baseUrl)) dataFrameNameUrl.stripPrefix(baseUrl)
+      val resourcePath = if (dataFrameNameUrl.startsWith(baseUrl)) dataFrameNameUrl.stripPrefix(baseUrl)
       else dataFrameNameUrl
-      try{
+      try {
         val dataStreamSource: DataStreamSource = dataProvider.getDataStreamSource(resourcePath)
         val dataFrame: DataFrame = DefaultDataFrame(dataStreamSource.schema, dataStreamSource.iterator)
         Some(dataFrame)
-      }catch {
+      } catch {
         case e: Exception =>
           logger.error(e)
           None
       }
     }
+
     //TODO Repository config
     override def getRepositoryClient(): Option[OperatorRepository] = Some(new RepositoryClient("10.0.89.38", 8088))
 
