@@ -328,28 +328,23 @@ case class FileRepositoryBundle(
   }
 
   def runOperator(): DataFrame = {
+    dockerContainer.start()
     DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
     DataFrame.empty()
   }
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrameFIFO] = {
-    dockerContainer.start()
     //创建fifo文件
-    var inputFuture:Future[RowFilePipe] = null
     (inputFilePath ++ outputFilePath).foreach(path=>RowFilePipe.fromFilePath(path))
-    if(inputs.isInstanceOf[DataFrameFIFO]) {
-      val inputFile = RowFilePipe(new java.io.File(inputs.head.asInstanceOf[DataFrameFIFO].inputFilePath))
-      inputFuture = inputFile.copyToFile(outputFilePath.head)
+    if(inputs.nonEmpty) {
+      val inputFiles = inputs.map(input=>RowFilePipe(new java.io.File(input.asInstanceOf[DataFrameFIFO].inputFilePath)))
+      inputFiles.zip(inputFilePath).foreach {
+        case(inputFile,outputFile) => inputFile.copyToFile(outputFile)
+      }
     }
-    //"jyg-container"
     //outputFilePath.head -> 下游inputFilePath.head
-//    inputFuture.onFailure {
-//      case e => println(s"后台管道启动或运行时失败: $e")
-//      // 你可能需要在这里处理错误，比如取消 Docker 任务
-//    }
-
     //TODO 支持输出多个文件
-    inputFilePath.map(DataFrameFIFO(_))
+    outputFilePath.map(DataFrameFIFO(_))
   }
 }
 

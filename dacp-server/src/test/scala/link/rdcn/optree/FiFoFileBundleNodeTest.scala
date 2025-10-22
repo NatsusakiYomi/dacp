@@ -40,7 +40,7 @@ class FiFoFileBundleNodeTest {
 
     val nodeHydro = FifoFileBundleFlowNode(
       Seq("python", "/mnt/data/temp2/hydro_susceptibility.py"),
-      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
+      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
       Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
       DockerContainer("jyg-container")
     )
