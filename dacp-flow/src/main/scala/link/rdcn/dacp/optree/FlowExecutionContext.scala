@@ -9,8 +9,6 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.JavaConverters._
 
 /**
  * @Author renhao
@@ -25,24 +23,29 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
     new ConcurrentHashMap[TransformOp, ArrayBuffer[Thread]]()
 
   def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame],
-                         thread: Thread): Unit = {
+                          thread: Thread): Unit = {
     asyncResults.put(transformOp, future)
     asyncResultsList.keys().asScala.foreach(key => {
       if(key.asInstanceOf[TransformerNode].contain(transformOp.asInstanceOf[TransformerNode])){
         asyncResultsList.get(key).append(thread)
+        future.onComplete{
+          case Failure(e) =>
+            asyncResults.remove(transformOp)
+            throw new Exception(s"TransformOp $transformOp failed", e)
+        }
       }else {
         val arr = new ArrayBuffer[Thread]()
         arr.append(thread)
         asyncResultsList.put(transformOp, arr)
+        future.onComplete {
+          case Success(df) => transformOp.asInstanceOf[TransformerNode].release()
+          case Failure(e) =>
+            asyncResultsList.remove(transformOp)
+            asyncResults.remove(transformOp)
+            throw new Exception(s"TransformOp $transformOp failed", e)
+        }
       }
     })
-
-    future.onComplete {
-      case Success(df) =>
-      case Failure(e) =>
-        asyncResults.remove(transformOp)
-        throw new Exception(s"TransformOp $transformOp failed", e)
-    }
   }
 
   def getAsyncResult(transformOp: TransformOp): Option[Future[DataFrame]] = {

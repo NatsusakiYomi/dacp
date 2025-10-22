@@ -131,6 +131,11 @@ public class JProviderTest {
                 }
             }
 
+            @Override
+            public void getDataFrameMetaData(String dataFrameName, Model rdfModel) {
+                
+            }
+
             /**
              * 列出指定DataSet的DataFrame名称列表
              *
@@ -175,6 +180,11 @@ public class JProviderTest {
             @Override
             public DataFrameDocument getDocument(String dataFrameName) {
                 return null;
+            }
+
+            @Override
+            public StructType getSchema(String dataFrameName) {
+                return StructType.empty();
             }
 
             /**

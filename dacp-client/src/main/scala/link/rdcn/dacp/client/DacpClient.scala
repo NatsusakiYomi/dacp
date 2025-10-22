@@ -1,11 +1,9 @@
 package link.rdcn.dacp.client
 
 import link.rdcn.client.{DftpClient, RemoteDataFrameProxy, UrlValidator}
-import link.rdcn.dacp.optree.fifo.DockerContainer
 import link.rdcn.dacp.optree.{FiFoFileNode, FileRepositoryBundle, LangTypeV2, RepositoryOperator, TransformFunctionWrapper, TransformerNode}
 import link.rdcn.dacp.recipe.{ExecutionResult, FifoFileBundleFlowNode, FifoFileFlowNode, Flow, FlowPath, RepositoryNode, SourceNode, Transformer11, Transformer21}
 import link.rdcn.dacp.struct.{CookTicket, DataFrameDocument, DataFrameStatistics}
-import link.rdcn.dacp.user.KeyCredentials
 import link.rdcn.operation.{DataFrameCall11, DataFrameCall21, SerializableFunction, SourceOp, TransformOp}
 import link.rdcn.struct.{ClosableIterator, DFRef, DataFrame, DefaultDataFrame, Row, StructType}
 import link.rdcn.user.{AnonymousCredentials, Credentials, TokenAuth, UsernamePassword}
@@ -63,9 +61,34 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
     DefaultDataFrame(schemaAndRow._1, schemaAndRow._2)
   }
 
-  //TODO: Remove this method and update related test cases accordingly
+  @deprecated
   def getByPath(path: String): DataFrame = {
     super.get(dacpUrlPrefix + path)
+  }
+
+  def getSchema(dataFrameName: String): StructType = {
+    val structTypeStr = new String(doAction(s"/getSchema/${dataFrameName}"), "UTF-8")
+    StructType.fromString(structTypeStr)
+  }
+
+  override def get(url: String): DataFrame = {
+    val urlValidator = new UrlValidator(prefixSchema)
+    if (urlValidator.isPath(url)) {
+      val schema = getSchema(url)
+      val document = getDocument(url)
+      RemoteGetDataFrameProxy(SourceOp(url), getRows, schema, document)
+    } else {
+      urlValidator.validate(url) match {
+        case Right((host, port, path)) => {
+          if (host == this.host && port.getOrElse(3101) == this.port) {
+            val schema = getSchema(path)
+            val document = getDocument(path)
+            RemoteGetDataFrameProxy(SourceOp(url), getRows, schema, document)
+          } else throw new IllegalArgumentException(s"Invalid request URL: $url  Expected format: $prefixSchema://${this.host}[:${this.port}]")
+        }
+        case Left(message) => throw new IllegalArgumentException(message)
+      }
+    }
   }
 
   //执行 recipe
@@ -168,10 +191,10 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
   }
 
   def getDataFrameSize(dataFrameName: String): Long = {
-      new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
-        case s if s.nonEmpty => s.asInstanceOf[Long]
-        case _ => 0L
-      }
+    new String(doAction(s"/getDataFrameSize/${dataFrameName}"), "UTF-8").trim match {
+      case s if s.nonEmpty => s.asInstanceOf[Long]
+      case _ => 0L
+    }
   }
 
   def getHostInfo: Map[String, String] = {

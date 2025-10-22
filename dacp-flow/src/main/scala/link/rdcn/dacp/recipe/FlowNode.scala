@@ -25,11 +25,11 @@ case class RepositoryNode(
                          ) extends FlowNode
 
 case class FifoFileBundleFlowNode(
-                               command: Seq[String],
-                               inputFilePath: Seq[String],
-                               outputFilePath: Seq[String],
-                               dockerContainer: DockerContainer
-                             ) extends FlowNode
+                                   command: Seq[String],
+                                   inputFilePath: Seq[String],
+                                   outputFilePath: Seq[String],
+                                   dockerContainer: DockerContainer
+                                 ) extends FlowNode
 
 case class FifoFileFlowNode(filePath: String) extends FlowNode
 

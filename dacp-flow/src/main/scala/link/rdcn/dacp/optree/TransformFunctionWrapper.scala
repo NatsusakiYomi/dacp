@@ -10,7 +10,7 @@ import org.json.{JSONArray, JSONObject}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
+import java.io.{BufferedReader, BufferedWriter, File, InputStreamReader, OutputStreamWriter}
 import java.net.{URL, URLClassLoader}
 import java.nio.file.Paths
 import java.util.{Base64, ServiceLoader, UUID}
@@ -44,7 +44,6 @@ object TransformFunctionWrapper {
       case LangTypeV2.CPP_BIN.name => CppBin(jo.getString("cppPath"))
       case LangTypeV2.REPOSITORY_OPERATOR.name => RepositoryOperator(jo.getString("functionID"))
       case LangTypeV2.FILE_REPOSITORY_BUNDLE.name => {
-
         val command = jo.getJSONArray("command").toList.asScala.map(_.toString)
         val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala.map(_.toString)
         val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala.map(_.toString)

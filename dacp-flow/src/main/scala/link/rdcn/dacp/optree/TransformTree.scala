@@ -4,14 +4,16 @@ import link.rdcn.client.UrlValidator
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.TokenAuth
-import link.rdcn.dacp.optree.fifo.{BinaryFilePipe, RowFilePipe}
+import link.rdcn.dacp.optree.fifo.RowFilePipe
 import org.json.{JSONArray, JSONObject}
 
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 /**
  * @Author renhao
@@ -95,23 +97,8 @@ case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends Tran
   }
 
   override def execute(ctx: ExecutionContext): DataFrame = {
-    try{
-      try{
-        transformOp.head.execute(ctx)
-        RowFilePipe.fromFilePath(filePath).dataFrame()
-      }finally {
-        val future: Future[DataFrame] = ctx.asInstanceOf[FlowExecutionContext]
-          .getAsyncResult(transformOp.head).get
-         future.onComplete{
-           case Success(df) =>
-             transformOp.head.asInstanceOf[TransformerNode].release()
-           case Failure(e) => ctx.asInstanceOf[FlowExecutionContext]
-             .getAsyncThreads(transformOp.head)
-             .foreach(_.foreach(_.stop))
-             throw e
-         }
-      }
-    }
+    transformOp.head.execute(ctx)
+    RowFilePipe.fromFilePath(filePath).dataFrame()
   }
 }
 

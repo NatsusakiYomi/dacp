@@ -79,7 +79,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
     this
   }
 
-  def doCook(request: CookRequest, response: CookResponse): Unit = {
+  protected def doCook(request: CookRequest, response: CookResponse): Unit = {
     val transformTree = request.getTransformTree
     val userPrincipal = request.getRequestUserPrincipal()
     transformTree.sourceUrlList.find(
@@ -90,7 +90,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
     }
   }
 
-  def doGet(request: GetRequest, response: GetResponse): Unit = {
+  protected def doGet(request: GetRequest, response: GetResponse): Unit = {
     request.getRequestURI() match {
       case "/listDataSets" =>
         try {
@@ -130,12 +130,19 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
     }
   }
 
-  def doAction(request: ActionRequest, response: ActionResponse): Unit = {
+  protected def doAction(request: ActionRequest, response: ActionResponse): Unit = {
     request.getActionName() match {
       case name if name.startsWith("/getDataSetMetaData/") =>
         val model: Model = ModelFactory.createDefaultModel
         val prefix: String = "/getDataSetMetaData/"
         dataProvider.getDataSetMetaData(name.replaceFirst(prefix, ""), model)
+        val writer = new StringWriter();
+        model.write(writer, "RDF/XML");
+        response.send(writer.toString.getBytes("UTF-8"))
+      case name if name.startsWith("/getDataFrameMetaData/") =>
+        val model: Model = ModelFactory.createDefaultModel
+        val prefix: String = "/getDataFrameMetaData/"
+        dataProvider.getDataFrameMetaData(name.replaceFirst(prefix, ""), model)
         val writer = new StringWriter();
         model.write(writer, "RDF/XML");
         response.send(writer.toString.getBytes("UTF-8"))
@@ -145,6 +152,9 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
       case name if name.startsWith("/getStatistics/") =>
         val prefix: String = "/getStatistics/"
         response.send(getDataFrameStatisticsString(name.replaceFirst(prefix, "")).getBytes("UTF-8"))
+      case name if name.startsWith("/getSchema/") =>
+        val prefix: String = "/getSchema/"
+        response.send(dataProvider.getSchema(name.replaceFirst(prefix, "")).toString().getBytes("UTF-8"))
       case name if name.startsWith("getDataFrameSize") =>
         val prefix: String = "/getDataFrameSize/"
         response.send(dataProvider.getDataStreamSource(name.replaceFirst(prefix, "")).rowCount.toString.getBytes("UTF-8"))
@@ -157,7 +167,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
    * 输入链接（实现链接）： dacp://0.0.0.0:3101/listDataSets
    * 返回链接： dacp://0.0.0.0:3101/listDataFrames/dataSetName
    * */
-  def doListDataSets(): DataFrame = {
+  protected def doListDataSets(): DataFrame = {
     val stream = dataProvider.listDataSetNames().asScala.map(dsName => {
       val model: Model = ModelFactory.createDefaultModel
       dataProvider.getDataSetMetaData(dsName, model)
@@ -176,7 +186,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
    * 输入链接（实现链接）： dacp://0.0.0.0:3101/listDataFrames/dataSetName
    * 返回链接： dacp://0.0.0.0:3101/dataFrameName
    * */
-  def doListDataFrames(listDataFrameUrl: String): DataFrame = {
+  protected def doListDataFrames(listDataFrameUrl: String): DataFrame = {
     val dataSetName = listDataFrameUrl.stripPrefix("/listDataFrames/")
     val schema = StructType.empty.add("name", StringType).add("size", LongType)
       .add("document", StringType).add("schema", StringType).add("statistics", StringType)
@@ -194,7 +204,7 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
   /**
    * 输入链接(实现链接)： dacp://0.0.0.0:3101/getHost
    * */
-  def doListHostInfo(): DataFrame = {
+  protected def doListHostInfo(): DataFrame = {
     val schema = StructType.empty.add("name", StringType).add("hostInfo", StringType).add("resourceInfo", StringType)
     val hostName = fairdConfig.hostName
     val stream = Seq((hostName, getHostInfoString(), getHostResourceString()))

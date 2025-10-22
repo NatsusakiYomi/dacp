@@ -18,9 +18,7 @@ public class ClientTlsTest {
     public static void main(String[] args) {
         DacpClient dc = DacpClient.connectTLS("dacp://localhost:3101",
                 new File("/Users/renhao/Downloads/faird-java-http2/src/main/resources/conf/faird"),
-                Credentials.ANONYMOUS(),
-                false
-        );
+                Credentials.ANONYMOUS(), false);
         Seq<String> stringSeq = dc.listDataSetNames();
         Iterator<String> iterator = stringSeq.iterator();
 

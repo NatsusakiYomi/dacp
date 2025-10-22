@@ -124,8 +124,16 @@ class DataProviderTest extends DataProvider {
    */
   override def getStatistics(dataFrameName: String): DataFrameStatistics = ???
 
+  /**
+   * 获取数据集的 RDF 元数据，填充到传入的 rdfModel 中
+   *
+   * @param dataFrameName 数据帧名（如 /mnt/a.csv)
+   * @param rdfModel      RDF 模型（由调用者传入，方法将其填充）
+   */
+  override def getDataFrameMetaData(dataFrameName: String, rdfModel: Model): Unit = {
+  }
 
-
+  override def getSchema(dataFrameName: String): StructType = ???
 }
 
 case class TokenAuthenticatedUser(token: String) extends UserPrincipal
@@ -139,7 +147,7 @@ class AuthorProviderTest extends AuthProvider {
   override def authenticate(credentials: Credentials): UserPrincipal = {
     val token: String = {
       credentials match {
-        case UsernamePassword("test", "test") => "1"
+        case UsernamePassword("Admin", "Ano") => "1"
         case _ => "2"
       }
     }
