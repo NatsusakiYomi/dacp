@@ -5,7 +5,7 @@ import link.rdcn.{DftpConfig, Logging}
 import link.rdcn.client.UrlValidator
 import link.rdcn.dacp.ConfigKeys.{FAIRD_HOST_DOMAIN, FAIRD_HOST_NAME, FAIRD_HOST_PORT, FAIRD_HOST_POSITION, FAIRD_HOST_TITLE, FAIRD_TLS_CERT_PATH, FAIRD_TLS_ENABLED, FAIRD_TLS_KEY_PATH, LOGGING_FILE_NAME, LOGGING_LEVEL_ROOT, LOGGING_PATTERN_CONSOLE, LOGGING_PATTERN_FILE}
 import link.rdcn.dacp.{ConfigKeys, FairdConfig}
-import link.rdcn.dacp.optree.{FiFoFileNode, FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
+import link.rdcn.dacp.optree.{TransformFunctionWrapper, FiFoFileNode, FifoFileRepositoryBundle, FlowExecutionContext, OperatorRepository, RepositoryClient, TransformTree}
 import link.rdcn.dacp.provider.DataProvider
 import link.rdcn.dacp.receiver.DataReceiver
 import link.rdcn.dacp.struct.CookTicket
@@ -373,8 +373,8 @@ class DacpServer(dataProvider: DataProvider, dataReceiver: DataReceiver, authPro
 
     override val fairdHome: String = getFairdConfig().fairdHome
 
-    override def isAsyncEnabled: Boolean = transformTree match {
-      case _: FiFoFileNode => true
+    override def isAsyncEnabled(wrapper: TransformFunctionWrapper): Boolean = wrapper match {
+      case _: FifoFileRepositoryBundle => true
       case other => false
     }
 

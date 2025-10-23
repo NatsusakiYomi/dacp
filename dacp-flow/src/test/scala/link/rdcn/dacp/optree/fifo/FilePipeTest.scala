@@ -1,7 +1,9 @@
 package link.rdcn.dacp.optree.fifo
 
+import link.rdcn.struct.ClosableIterator
 import org.junit.jupiter.api.Assertions._
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Test}
+
 import java.io.File
 import java.nio.file.Files
 
@@ -18,6 +20,10 @@ class FilePipeTest {
       // 对于文件操作的测试，此方法的具体实现不重要。
       null
     }
+
+    override def write(messages: Iterator[String]): Unit = ???
+
+    override def read(): ClosableIterator[String] = ???
   }
 
   /**

@@ -1,6 +1,6 @@
 package link.rdcn.dacp.optree
 
-import link.rdcn.dacp.optree.fifo.{DockerContainer, DockerExecute, RowFilePipe, TempFilePipe}
+import link.rdcn.dacp.optree.fifo.{DockerContainer, DockerExecute, RowFilePipe, RAMFilePipe, FilePipe}
 import link.rdcn.operation.{ExecutionContext, FunctionSerializer, FunctionWrapper, GenericFunctionCall}
 import link.rdcn.struct.ValueType.StringType
 import link.rdcn.struct._
@@ -47,11 +47,12 @@ object TransformFunctionWrapper {
         val inputFilePath = jo.getJSONArray("inputFilePath").toList.asScala.map(_.toString)
         val outPutFilePath = jo.getJSONArray("outputFilePath").toList.asScala.map(_.toString)
         val dockerContainer = DockerContainer.fromJson(jo.getJSONObject("dockerContainer"))
-        val fileType = jo.getInt("fileType")
-        if (fileType == FileType.FIFO_BUFFER)
-          FifoFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer, fileType)
+        val inputFileType = jo.getInt("inputFileType")
+        val outputFileType = jo.getInt("outputFileType")
+        if (outputFileType == FileType.FIFO_BUFFER)
+          FifoFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer, inputFileType, outputFileType)
         else
-          TempFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer, fileType)
+          TempFileRepositoryBundle(command, inputFilePath, outPutFilePath, dockerContainer, inputFileType, outputFileType)
       }
     }
   }
@@ -312,7 +313,8 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
   def inputFilePath: Seq[String]
   def outputFilePath: Seq[String]
   def dockerContainer: DockerContainer
-  def fileType: Int
+  def inputFileType: Int
+  def outputFileType: Int
 
   override def toJson: JSONObject = {
     val jo = new JSONObject
@@ -321,7 +323,8 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
     jo.put("inputFilePath", new JSONArray(inputFilePath.asJava))
     jo.put("outputFilePath", new JSONArray(outputFilePath.asJava))
     jo.put("dockerContainer", dockerContainer.toJson())
-    jo.put("fileType", fileType)
+    jo.put("inputFileType", inputFileType)
+    jo.put("outputFileType", outputFileType)
     jo
   }
 
@@ -337,7 +340,8 @@ case class FifoFileRepositoryBundle(command: Seq[String],
                                     inputFilePath: Seq[String],
                                     outputFilePath: Seq[String],
                                     dockerContainer: DockerContainer,
-                                    fileType: Int) extends FileRepositoryBundle {
+                                    inputFileType: Int,
+                                    outputFileType: Int) extends FileRepositoryBundle {
 
   def runOperator(): DataFrame = {
     dockerContainer.start()
@@ -347,17 +351,20 @@ case class FifoFileRepositoryBundle(command: Seq[String],
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     //创建fifo文件
-    (inputFilePath ++ outputFilePath).foreach(path => RowFilePipe.fromFilePath(path))
+    val inputFilesThis =  inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
+    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
     if (inputs.nonEmpty) {
-      val inputFiles = inputs.map(input => RowFilePipe(new java.io.File(input.asInstanceOf[DataFrameFIFO].inputFilePath)))
-      inputFiles.zip(inputFilePath).foreach {
-        case (inputFile, outputFile) if inputFile.file.getAbsolutePath != outputFile => inputFile.copyToFile(outputFile)
+      val inputFiles = inputs.map(input => input.asInstanceOf[DataFrameFIFO].inputFile)
+      inputFiles.zip(inputFilesThis).foreach {
+        case (inputFile, outputFile) if inputFile.path != outputFile.path => inputFile.copyToFile(outputFile)
         case _ =>
       }
     }
     //outputFilePath.head -> 下游inputFilePath.head
     //TODO 支持输出多个文件
-    outputFilePath.map(DataFrameFIFO(_))
+    outputFilePath.zip(outputFiles).map{
+      case (outputFilePath, outputFile) => DataFrameFIFO(outputFilePath,outputFile)
+    }
   }
 }
 
@@ -365,26 +372,30 @@ case class TempFileRepositoryBundle(command: Seq[String],
                                     inputFilePath: Seq[String],
                                     outputFilePath: Seq[String],
                                     dockerContainer: DockerContainer,
-                                    fileType: Int) extends FileRepositoryBundle {
+                                    inputFileType: Int,
+                                    outputFileType: Int) extends FileRepositoryBundle {
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrameFIFO] = {
     //创建fifo文件
     dockerContainer.start()
-
-    (inputFilePath ++ outputFilePath).foreach(path => TempFilePipe.fromFilePath(path))
-    DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
+    val inputFilesThis = inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
+    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
     if (inputs.nonEmpty) {
-      val inputFiles = inputs.map(input => RowFilePipe(new java.io.File(input.asInstanceOf[DataFrameFIFO].inputFilePath)))
-      inputFiles.zip(inputFilePath).foreach {
-        case (inputFile, outputFile) => inputFile.copyToFile(outputFile)
+      val inputFiles = inputs.map(input => input.asInstanceOf[DataFrameFIFO].inputFile)
+      inputFiles.zip(inputFilesThis).foreach {
+        case (inputFile, outputFile) if inputFile.path != outputFile.path => inputFile.copyToFile(outputFile)
+        case _ =>
       }
     }
+    DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
     //outputFilePath.head -> 下游inputFilePath.head
     //TODO 支持输出多个文件
-    outputFilePath.map(DataFrameFIFO(_))
+    outputFilePath.zip(outputFiles).map{
+      case (outputFilePath, outputFile) => DataFrameFIFO(outputFilePath,outputFile)
+    }
   }
 }
 
-case class DataFrameFIFO(inputFilePath: String) extends DataFrame {
+case class DataFrameFIFO(inputFilePath: String, inputFile: FilePipe) extends DataFrame {
 
   lazy val df = RowFilePipe(new java.io.File(inputFilePath)).dataFrame()
 

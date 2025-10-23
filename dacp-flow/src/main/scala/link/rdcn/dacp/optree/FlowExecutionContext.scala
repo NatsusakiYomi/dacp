@@ -41,7 +41,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
       future.onComplete {
         case Success(df) =>
           transformOp.asInstanceOf[TransformerNode].transformFunctionWrapper
-            .asInstanceOf[FifoFileRepositoryBundle].outputFilePath.foreach(println)
+            .asInstanceOf[FileRepositoryBundle].outputFilePath.foreach(println)
           transformOp.asInstanceOf[TransformerNode].release()
           println(s"===========transform $transformOp 运行结束==============")
 
@@ -84,7 +84,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
 
   def pythonHome: String
 
-  def isAsyncEnabled: Boolean = false
+  def isAsyncEnabled(wrapper: TransformFunctionWrapper): Boolean = false
 
   def loadRemoteDataFrame(baseUrl: String, path:String, credentials: Credentials): Option[DataFrame]
 

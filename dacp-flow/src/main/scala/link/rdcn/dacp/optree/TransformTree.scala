@@ -131,7 +131,7 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
 
   override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
-    if(flowCtx.isAsyncEnabled){
+    if(flowCtx.isAsyncEnabled(this.transformFunctionWrapper)){
       val result = transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
       var thread: Thread = null
       val future:Future[DataFrame] = Future {

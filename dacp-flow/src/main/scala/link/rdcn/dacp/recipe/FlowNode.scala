@@ -29,7 +29,8 @@ case class FifoFileBundleFlowNode(
                                    inputFilePath: Seq[String],
                                    outputFilePath: Seq[String],
                                    dockerContainer: DockerContainer,
-                                   fileType: Int = FileType.FIFO_BUFFER
+                                   inputFileType: Int = FileType.FIFO_BUFFER,
+                                   outputFileType: Int = FileType.FIFO_BUFFER
                                  ) extends FlowNode
 
 object FileType {

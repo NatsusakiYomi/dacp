@@ -5,7 +5,7 @@ import link.rdcn.struct._
 
 import java.io._
 
-case class TempFilePipe(file: File) extends FilePipe(file) {
+case class RAMFilePipe(file: File) extends FilePipe(file) {
 
   override def create(): Unit = {
     if (file.exists()) {
@@ -62,16 +62,16 @@ case class TempFilePipe(file: File) extends FilePipe(file) {
       ClosableIterator(read().map(str => Row.fromSeq(Seq(str))))())
 }
 
-object TempFilePipe {
+object RAMFilePipe {
 
-  def fromFilePath(path: String): TempFilePipe = {
-    val pipe = new TempFilePipe(new File(path))
+  def fromFilePath(path: String): RAMFilePipe = {
+    val pipe = new RAMFilePipe(new File(path))
     pipe.create()
     pipe
   }
 
-  def fromFile(file: File): TempFilePipe = {
-    val pipe = new TempFilePipe(file)
+  def fromFile(file: File): RAMFilePipe = {
+    val pipe = new RAMFilePipe(file)
     pipe.create()
     pipe
   }

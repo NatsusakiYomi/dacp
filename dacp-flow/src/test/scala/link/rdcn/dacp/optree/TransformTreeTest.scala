@@ -29,7 +29,7 @@ class TransformTreeTest {
   private val OP_OVERLAP_OUTPUT = Paths.get(HOST_DIR, "op5", "DamDetect_select2_fifo.csv").toString
 
   private val ctx = new FlowExecutionContext {
-    override val isAsyncEnabled = true
+    val isAsyncEnabled = true
 
     override val fairdHome: String = ""
 

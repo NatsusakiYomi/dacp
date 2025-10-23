@@ -62,13 +62,7 @@ case class RowFilePipe(file: File) extends FilePipe(file) {
     this
   }
 
-  def copyToFile(path: String): Future[RowFilePipe] = {
-    Future {
-      val target = RowFilePipe(new File(path))
-      target.write(read())
-      target
-    }
-  }
+
 
   override def dataFrame(): DataFrame =
     DefaultDataFrame(StructType.empty.add("content", StringType),

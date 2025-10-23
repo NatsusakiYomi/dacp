@@ -131,14 +131,15 @@ class DacpClient(host: String, port: Int, useTLS: Boolean = false) extends DftpC
           TransformFunctionWrapper.fromJsonObject(jo).asInstanceOf[RepositoryOperator],
           transformFlowToOperation(path.children.head))
         transformerNode
-      case FifoFileBundleFlowNode(command, inputFilePath, outputFilePath, dockerContainer, fileType) =>
+      case FifoFileBundleFlowNode(command, inputFilePath, outputFilePath, dockerContainer, inputFileType, outputFileType) =>
         val jo = new JSONObject()
         jo.put("type", LangTypeV2.FILE_REPOSITORY_BUNDLE.name)
         jo.put("command", new JSONArray(command.asJavaCollection))
         jo.put("inputFilePath", new JSONArray(inputFilePath.asJavaCollection))
         jo.put("outputFilePath", new JSONArray(outputFilePath.asJavaCollection))
         jo.put("dockerContainer", dockerContainer.toJson())
-        jo.put("fileType", fileType)
+        jo.put("inputFileType", inputFileType)
+        jo.put("outputFileType", outputFileType)
         TransformerNode(
           TransformFunctionWrapper.fromJsonObject(jo),
           path.children.map(transformFlowToOperation(_)): _* )

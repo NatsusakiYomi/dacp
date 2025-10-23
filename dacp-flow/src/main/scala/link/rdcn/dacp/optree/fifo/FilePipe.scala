@@ -1,9 +1,13 @@
 package link.rdcn.dacp.optree.fifo
 
-import link.rdcn.struct.DataFrame
+import link.rdcn.dacp.recipe.FileType
+import link.rdcn.struct.{ClosableIterator, DataFrame}
 
 import java.io.File
 import java.nio.file.Files
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
 /**
  * @Author renhao
@@ -19,6 +23,24 @@ abstract class FilePipe(file: File) {
       Runtime.getRuntime.exec(Array("mkfifo", file.getAbsolutePath)).waitFor()
   }
 
+  def write(messages: Iterator[String]): Unit
+
+  def read(): ClosableIterator[String]
+
+  def copyToFile(file: FilePipe): Unit = {
+    file match {
+      case s if s.isInstanceOf[RowFilePipe] => Future {
+        file.write(read())
+      }
+      case others =>
+        Await.result(Future {
+          file.write(read())
+        },1.minute)
+
+    }
+
+  }
+
   def delete(): Unit = {
     Files.deleteIfExists(file.toPath)
   }
@@ -26,4 +48,22 @@ abstract class FilePipe(file: File) {
   def path: String = file.getAbsolutePath
 
   def dataFrame(): DataFrame
+}
+
+object FilePipe {
+  def fromFilePath(path: String, fileType: Int): FilePipe = {
+    fileType match {
+      case t if t == FileType.FIFO_BUFFER => RowFilePipe.fromFilePath(path)
+      case t if t == FileType.RAM_FILE => RAMFilePipe.fromFilePath(path)
+      case t if t == FileType.MMAP_FILE => MMAPFilePipe.fromFilePath(path)
+    }
+  }
+
+  def getFilePipe(path: String, fileType: Int): FilePipe = {
+    fileType match {
+      case t if t == FileType.FIFO_BUFFER => RowFilePipe(new File(path))
+      case t if t == FileType.RAM_FILE => RAMFilePipe(new File(path))
+      case t if t == FileType.MMAP_FILE => MMAPFilePipe(new File(path))
+    }
+  }
 }
