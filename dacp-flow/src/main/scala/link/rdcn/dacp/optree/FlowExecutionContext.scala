@@ -42,6 +42,7 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
         case Success(df) =>
           transformOp.asInstanceOf[TransformerNode].transformFunctionWrapper
             .asInstanceOf[FifoFileRepositoryBundle].outputFilePath.foreach(println)
+          transformOp.asInstanceOf[TransformerNode].release()
           println(s"===========transform $transformOp 运行结束==============")
 
         case Failure(e) =>
