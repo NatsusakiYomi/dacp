@@ -28,68 +28,47 @@ trait FlowExecutionContext extends link.rdcn.operation.ExecutionContext {
   def registerAsyncResult(transformOp: TransformOp, future: Future[DataFrame],
                           thread: Thread): Unit = {
     asyncResults.put(transformOp, future)
-    val parentKeyOpt = asyncResultsList.keys().asScala.find { key =>
-      key.asInstanceOf[TransformerNode].contain(transformOp.asInstanceOf[TransformerNode])
+    val parents = asyncResultsList.keys().asScala.filter { key =>
+      transformOp.asInstanceOf[TransformerNode].contain(key.asInstanceOf[TransformerNode])
     }
-    parentKeyOpt match {
-      case Some(key) =>
-        println(s"TransformOp $transformOp 找到了父节点 $key，将线程加入列表")
-        asyncResultsList.get(key).append(thread)
+    if (parents.nonEmpty) {
+      println(s"TransformOp $transformOp 找到了 ${parents.size} 个父节点: ${parents.mkString(", ")}")
 
-        future.onComplete {
-          case Success(df) =>
-            println("===========transform运行结束==============")
-            transformOp.asInstanceOf[TransformerNode].transformFunctionWrapper
-              .asInstanceOf[FifoFileBundleFlowNode].outputFilePath.foreach(println)
-            println("===========transform运行结束==============")
-          case Failure(e) =>
-            asyncResults.remove(transformOp) // 从 future 列表中移除
-            throw new Exception(s"TransformOp $transformOp failed", e)
-        }
+      parents.foreach { parentKey =>
+        asyncResultsList.get(parentKey).append(thread)
+      }
 
-      case None =>
-        println(s"TransformOp $transformOp 未找到父节点，将其注册为新的根节点")
-        val arr = new ArrayBuffer[Thread]()
-        arr.append(thread)
-        asyncResultsList.put(transformOp, arr)
+      future.onComplete {
+        case Success(df) =>
+          transformOp.asInstanceOf[TransformerNode].transformFunctionWrapper
+            .asInstanceOf[FifoFileRepositoryBundle].outputFilePath.foreach(println)
+          println(s"===========transform $transformOp 运行结束==============")
 
-        future.onComplete {
-          case Success(df) =>
-            println(s"recipe $transformOp 完成释放资源")
-            transformOp.asInstanceOf[TransformerNode].release()
-          case Failure(e) =>
-            asyncResultsList.remove(transformOp)
-            asyncResults.remove(transformOp)
-            throw new Exception(s"TransformOp $transformOp failed", e)
-        }
+        case Failure(e) =>
+          println(s"TransformOp $transformOp 失败, 正在移除... $e")
+          asyncResults.remove(transformOp)
+          println(s"TransformOp $transformOp 失败, 正在移除所有父节点: ${parents.mkString(", ")}")
+          parents.foreach { parentKey =>
+            asyncResultsList.remove(parentKey)
+          }
+          throw new Exception(s"TransformOp $transformOp failed, and removed parents: ${parents.mkString(", ")}", e)
+      }
+    } else {
+      println(s"TransformOp $transformOp 未找到父节点，将其注册为新的根节点")
+      val arr = new ArrayBuffer[Thread]()
+      arr.append(thread)
+      asyncResultsList.put(transformOp, arr)
+      future.onComplete {
+        case Success(df) =>
+          println(s"recipe $transformOp 完成释放资源")
+          transformOp.asInstanceOf[TransformerNode].release()
+        case Failure(e) =>
+          println(s"Recipe (root) $transformOp 失败, 正在移除... $e")
+          asyncResultsList.remove(transformOp)
+          asyncResults.remove(transformOp)
+          throw new Exception(s"TransformOp (Recipe) $transformOp failed", e)
+      }
     }
-//    asyncResultsList.keys().asScala.foreach(key => {
-//      if(key.asInstanceOf[TransformerNode].contain(transformOp.asInstanceOf[TransformerNode])){
-//        asyncResultsList.get(key).append(thread)
-//        future.onComplete{
-//          case Success(df) => println("===========transform运行结束==============")
-//            transformOp.asInstanceOf[TransformerNode].transformFunctionWrapper
-//          .asInstanceOf[FifoFileBundleFlowNode].outputFilePath.foreach(println)
-//            println("===========transform运行结束==============")
-//          case Failure(e) =>
-//            asyncResults.remove(transformOp)
-//            throw new Exception(s"TransformOp $transformOp failed", e)
-//        }
-//      }else {
-//        val arr = new ArrayBuffer[Thread]()
-//        arr.append(thread)
-//        asyncResultsList.put(transformOp, arr)
-//        future.onComplete {
-//          case Success(df) =>
-//            println(s"recipe 完成释放资源")
-//            transformOp.asInstanceOf[TransformerNode].release()
-//          case Failure(e) =>
-//            asyncResultsList.remove(transformOp)
-//            asyncResults.remove(transformOp)
-//            throw new Exception(s"TransformOp $transformOp failed", e)
-//        }
-//      }
-//    })
   }
 
   def getAsyncResult(transformOp: TransformOp): Option[Future[DataFrame]] = {
