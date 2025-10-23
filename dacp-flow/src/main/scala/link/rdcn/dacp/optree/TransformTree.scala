@@ -93,8 +93,9 @@ case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends Tran
   }
 
   override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
-    transformOp.head.execute(ctx)
-    Seq(RowFilePipe.fromFilePath(filePath).dataFrame())
+      transformOp.head.execute(ctx)
+      val dfs = Seq(RowFilePipe.fromFilePath(filePath).dataFrame())
+      dfs
   }
 }
 
@@ -114,11 +115,6 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
       transformFunctionWrapper.asInstanceOf[FileRepositoryBundle]
         .deleteFiFOFile
     }
-    inputTransforms.foreach(input => {
-      if(input.isInstanceOf[TransformerNode]){
-        input.asInstanceOf[TransformerNode].release()
-      }
-    })
   }
 
   override var inputs: Seq[TransformOp] = inputTransforms
@@ -141,7 +137,9 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
       val future:Future[DataFrame] = Future {
         try {
           thread = Thread.currentThread()
-          transformFunctionWrapper.asInstanceOf[FifoFileRepositoryBundle].runOperator()
+          transformFunctionWrapper
+            .asInstanceOf[FifoFileRepositoryBundle]
+            .runOperator()
         } catch {
           case t: Throwable =>
             t.printStackTrace()

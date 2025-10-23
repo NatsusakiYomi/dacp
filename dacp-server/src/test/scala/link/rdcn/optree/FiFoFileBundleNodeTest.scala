@@ -26,46 +26,6 @@ object FiFoFileBundleNodeTest{
 }
 
 class FiFoFileBundleNodeTest {
-
-  @Test
-  def tempFileTest(): Unit = {
-    val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))
-
-    val nodeGullySlop = FifoFileBundleFlowNode(
-      Seq("python", "/mnt/data/temp2/gully_slop.py"),
-      Seq(""),
-      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
-      DockerContainer("jyg-container"),
-      FileType.RAM_FILE
-    )
-
-    val nodeHydro = FifoFileBundleFlowNode(
-      Seq("python", "/mnt/data/temp2/hydro_susceptibility.py"),
-      Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
-      Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
-      DockerContainer("jyg-container"),
-      FileType.RAM_FILE
-    )
-
-    val fifoFileNode = FifoFileFlowNode("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv")
-
-    val recipe = Flow(
-      Map(
-        "A" -> nodeGullySlop,
-        "B" -> nodeHydro,
-        "C" -> fifoFileNode
-
-      ),
-      Map(
-        "A" -> Seq("B"),
-        "B" -> Seq("C")
-      )
-    )
-    val result = dacpClient.execute(recipe)
-    result.single().foreach(println)
-
-  }
-
   @Test
   def gully_hydro(): Unit = {
     val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))

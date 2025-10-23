@@ -8,9 +8,10 @@ import java.io._
 case class TempFilePipe(file: File) extends FilePipe(file) {
 
   override def create(): Unit = {
-    if (!file.exists()) {
-      Runtime.getRuntime.exec(Array("touch", file.getAbsolutePath)).waitFor()
+    if (file.exists()) {
+      Runtime.getRuntime.exec(Array("rm", "-rf", file.getAbsolutePath))
     }
+      Runtime.getRuntime.exec(Array("touch", file.getAbsolutePath)).waitFor()
   }
 
   def write(messages: Iterator[String]): Unit = {

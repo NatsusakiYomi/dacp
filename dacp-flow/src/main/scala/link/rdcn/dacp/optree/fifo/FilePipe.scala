@@ -13,9 +13,10 @@ import java.nio.file.Files
  */
 abstract class FilePipe(file: File) {
   def create(): Unit = {
-    if (!file.exists()) {
-      Runtime.getRuntime.exec(Array("mkfifo", file.getAbsolutePath)).waitFor()
+    if (file.exists()) {
+      Runtime.getRuntime.exec(Array("rm", "-rf", file.getAbsolutePath))
     }
+      Runtime.getRuntime.exec(Array("mkfifo", file.getAbsolutePath)).waitFor()
   }
 
   def delete(): Unit = {

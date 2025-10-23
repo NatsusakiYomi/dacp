@@ -326,7 +326,8 @@ trait FileRepositoryBundle extends TransformFunctionWrapper {
   }
 
   def deleteFiFOFile(): Unit = {
-    outputFilePath.foreach(filePath => {
+    (inputFilePath++outputFilePath).foreach(filePath => {
+      println(s"删除临时文件：$filePath")
       Runtime.getRuntime.exec(Array("rm", "-rf", filePath))
     })
   }
@@ -350,7 +351,8 @@ case class FifoFileRepositoryBundle(command: Seq[String],
     if (inputs.nonEmpty) {
       val inputFiles = inputs.map(input => RowFilePipe(new java.io.File(input.asInstanceOf[DataFrameFIFO].inputFilePath)))
       inputFiles.zip(inputFilePath).foreach {
-        case (inputFile, outputFile) => inputFile.copyToFile(outputFile)
+        case (inputFile, outputFile) if inputFile.file.getAbsolutePath != outputFile => inputFile.copyToFile(outputFile)
+        case _ =>
       }
     }
     //outputFilePath.head -> 下游inputFilePath.head
