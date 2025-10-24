@@ -343,23 +343,27 @@ case class FifoFileRepositoryBundle(command: Seq[String],
                                     inputFileType: Int,
                                     outputFileType: Int) extends FileRepositoryBundle {
 
-  def runOperator(): DataFrame = {
+  def runOperator(inputs: Seq[DataFrame]): DataFrame = {
     dockerContainer.start()
     DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
+    inputs.foreach(file=>file.asInstanceOf[DataFrameFIFO].inputFile.delete())
     DataFrame.empty()
   }
 
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrame] = {
     //创建fifo文件
-    val inputFilesThis =  inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
-    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
     if (inputs.nonEmpty) {
       val inputFiles = inputs.map(input => input.asInstanceOf[DataFrameFIFO].inputFile)
-      inputFiles.zip(inputFilesThis).foreach {
-        case (inputFile, outputFile) if inputFile.path != outputFile.path => inputFile.copyToFile(outputFile)
+      inputFiles.zip(inputFilePath).foreach {
+        case (inputFile, outputFile) if inputFile.path != outputFile =>
+          inputFile.copyToFile(FilePipe.fromFilePath(outputFile, inputFileType))
         case _ =>
       }
+    } else {
+      inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
     }
+
+    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
     //outputFilePath.head -> 下游inputFilePath.head
     //TODO 支持输出多个文件
     outputFilePath.zip(outputFiles).map{
@@ -375,20 +379,25 @@ case class TempFileRepositoryBundle(command: Seq[String],
                                     inputFileType: Int,
                                     outputFileType: Int) extends FileRepositoryBundle {
   override def applyToDataFrames(inputs: Seq[DataFrame], ctx: FlowExecutionContext): Seq[DataFrameFIFO] = {
-    //创建fifo文件
     dockerContainer.start()
-    val inputFilesThis = inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
-    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
-    if (inputs.nonEmpty) {
-      val inputFiles = inputs.map(input => input.asInstanceOf[DataFrameFIFO].inputFile)
-      inputFiles.zip(inputFilesThis).foreach {
-        case (inputFile, outputFile) if inputFile.path != outputFile.path => inputFile.copyToFile(outputFile)
-        case _ =>
+    val inputFilesThis: Seq[FilePipe] = {
+      if (inputs.nonEmpty) {
+        val inputFiles = inputs.map(input => input.asInstanceOf[DataFrameFIFO].inputFile)
+        inputFiles.zip(inputFilePath).map {
+          case (inputFile, outputFile) if inputFile.path != outputFile =>
+            val destinationPipe = FilePipe.fromFilePath(outputFile, inputFileType)
+            inputFile.copyToFile(destinationPipe)
+            destinationPipe
+        }
+      } else {
+        inputFilePath.map(path => FilePipe.fromFilePath(path, inputFileType))
       }
     }
+    val outputFiles = outputFilePath.map(path => FilePipe.fromFilePath(path, outputFileType))
     DockerExecute.nonInteractiveExec(command.toArray, dockerContainer.containerName)
-    //outputFilePath.head -> 下游inputFilePath.head
-    //TODO 支持输出多个文件
+    inputs.foreach(file=>file.asInstanceOf[DataFrameFIFO].inputFile.delete())
+    inputFilesThis.foreach(file=>file.delete())
+    //outputFilePath -> 下游inputFilePath
     outputFilePath.zip(outputFiles).map{
       case (outputFilePath, outputFile) => DataFrameFIFO(outputFilePath,outputFile)
     }

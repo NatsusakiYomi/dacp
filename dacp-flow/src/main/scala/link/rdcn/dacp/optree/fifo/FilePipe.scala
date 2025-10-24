@@ -41,8 +41,13 @@ abstract class FilePipe(file: File) {
 
   }
 
+
+
   def delete(): Unit = {
-    Files.deleteIfExists(file.toPath)
+    if(file.exists()) {
+      println(s"删除 ${file.getAbsolutePath} 中...")
+      Files.deleteIfExists(file.toPath)
+    }
   }
 
   def path: String = file.getAbsolutePath

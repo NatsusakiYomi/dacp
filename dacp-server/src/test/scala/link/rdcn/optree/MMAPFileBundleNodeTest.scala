@@ -9,7 +9,7 @@ import link.rdcn.server.{AuthorProviderTest, DataProviderTest, DataReceiverTest}
 import link.rdcn.user.UsernamePassword
 import org.junit.jupiter.api.{BeforeAll, Test}
 
-object RAMFileBundleNodeTest{
+object MMAPFileBundleNodeTest{
 
   var server: DacpServer = _
 
@@ -20,9 +20,9 @@ object RAMFileBundleNodeTest{
   }
 }
 
-class RAMFileBundleNodeTest {
+class MMAPFileBundleNodeTest {
   @Test
-  def RAMtoFIFORAMTest(): Unit = {
+  def MMAPtoFIFOMMAPTest(): Unit = {
     //输出MMAP未删除
     val dacpClient = DacpClient.connect("dacp://0.0.0.0:3101", UsernamePassword("test", "test"))
 
@@ -31,8 +31,8 @@ class RAMFileBundleNodeTest {
       Seq(""),
       Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo.csv"),
       DockerContainer("jyg-container"),
-      FileType.RAM_FILE,
-      FileType.RAM_FILE
+      FileType.MMAP_FILE,
+      FileType.MMAP_FILE
     )
 
     val nodeHydro = FifoFileBundleFlowNode(
@@ -40,8 +40,8 @@ class RAMFileBundleNodeTest {
       Seq("/data2/work/ncdc/faird/temp/temp2/gully_slop_fifo_new.csv"),
       Seq("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv"),
       DockerContainer("jyg-container"),
-      FileType.RAM_FILE,
-      FileType.RAM_FILE
+      FileType.FIFO_BUFFER,
+      FileType.MMAP_FILE
     )
 
     val fifoFileNode = FifoFileFlowNode("/data2/work/ncdc/faird/temp/temp2/suscep_hdyro_fifo.csv")

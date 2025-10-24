@@ -1,7 +1,8 @@
 package link.rdcn.dacp.optree
 
 import link.rdcn.client.UrlValidator
-import link.rdcn.dacp.optree.fifo.RowFilePipe
+import link.rdcn.dacp.optree.fifo.{RowFilePipe, FilePipe}
+import link.rdcn.dacp.recipe.FileType
 import link.rdcn.operation._
 import link.rdcn.struct.DataFrame
 import link.rdcn.user.TokenAuth
@@ -94,8 +95,13 @@ case class FiFoFileNode(filePath:String, transformOp: TransformOp*) extends Tran
 
   override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
       transformOp.head.execute(ctx)
-      val dfs = Seq(RowFilePipe.fromFilePath(filePath).dataFrame())
+      val dfs = Seq(FilePipe.getFilePipe(filePath, FileType.FIFO_BUFFER).dataFrame())
       dfs
+  }
+
+  def deleteFiFoFile: Unit = {
+      println(s"删除临时文件：$filePath")
+      Runtime.getRuntime.exec(Array("rm", "-rf", filePath))
   }
 }
 
@@ -132,14 +138,15 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
   override def execute(ctx: ExecutionContext): Seq[DataFrame] = {
     val flowCtx = ctx.asInstanceOf[FlowExecutionContext]
     if(flowCtx.isAsyncEnabled(this.transformFunctionWrapper)){
-      val result = transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
+      val inputDataFrames = inputs.flatMap(_.execute(ctx))
+      val result = transformFunctionWrapper.applyToDataFrames(inputDataFrames, flowCtx)
       var thread: Thread = null
       val future:Future[DataFrame] = Future {
         try {
           thread = Thread.currentThread()
           transformFunctionWrapper
             .asInstanceOf[FifoFileRepositoryBundle]
-            .runOperator()
+            .runOperator(inputDataFrames)
         } catch {
           case t: Throwable =>
             t.printStackTrace()
@@ -149,7 +156,8 @@ case class TransformerNode(transformFunctionWrapper: TransformFunctionWrapper, i
       flowCtx.registerAsyncResult(this, future, thread)
       result
     }else{
-      transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
+      val result = transformFunctionWrapper.applyToDataFrames(inputs.flatMap(_.execute(ctx)), flowCtx)
+      result
     }
   }
 }

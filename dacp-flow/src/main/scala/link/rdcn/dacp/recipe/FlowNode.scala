@@ -35,7 +35,7 @@ case class FifoFileBundleFlowNode(
 
 object FileType {
   val FIFO_BUFFER = 1
-  // 命名管道或磁盘FIFO
+  // 磁盘FIFO
   val RAM_FILE = 2
   // 纯内存文件
   val MMAP_FILE = 3 // 内存映射文件
