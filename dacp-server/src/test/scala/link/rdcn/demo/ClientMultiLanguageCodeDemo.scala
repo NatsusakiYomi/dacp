@@ -15,6 +15,8 @@ import link.rdcn.user.UsernamePassword
 import java.io.File
 import java.nio.file.Paths
 
+
+
 object ClientMultiLanguageCodeDemo {
 
   def main(args: Array[String]): Unit = {
