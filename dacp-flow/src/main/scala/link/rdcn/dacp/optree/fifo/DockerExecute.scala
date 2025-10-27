@@ -9,6 +9,10 @@ import com.github.dockerjava.core.{DefaultDockerClientConfig, DockerClientBuilde
 import scala.collection.JavaConverters._
 
 object DockerExecute {
+  object ContainerState extends Enumeration {
+    type ContainerState = Value
+    val NotFound, Stopped, Running = Value
+  }
 
   /**
    * 检查指定名称的容器是否正在运行
@@ -47,34 +51,34 @@ object DockerExecute {
    * @param imageName    镜像名称（如 `registry.cn-hangzhou.aliyuncs.com/cnic-piflow/siltdam-jyg:latest`）
    * @return 容器ID
    */
-  def startContainer(
-                      hostDir: String,
-                      containerDir: String,
-                      containerName: String,
-                      imageName: String
-                    ): String = {
-    // 1. 配置 Docker 客户端
-    val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
-    val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
+    def startContainer(
+                        hostDir: String,
+                        containerDir: String,
+                        containerName: String,
+                        imageName: String
+                      ): String = {
+      // 1. 配置 Docker 客户端
+      val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+      val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
 
-    try {
-      // 2. 创建容器（挂载目录 + 交互式终端）
-      val container: CreateContainerResponse = dockerClient.createContainerCmd(imageName)
-        .withName(containerName)
-        .withBinds(new Bind(hostDir, new Volume(containerDir))) // 挂载目录
-        .withTty(true)    // 相当于 -t
-        .withStdinOpen(true) // 相当于 -i
-        .exec()
+      try {
+        // 2. 创建容器（挂载目录 + 交互式终端）
+        val container: CreateContainerResponse = dockerClient.createContainerCmd(imageName)
+          .withName(containerName)
+          .withBinds(new Bind(hostDir, new Volume(containerDir))) // 挂载目录
+          .withTty(true)    // 相当于 -t
+          .withStdinOpen(true) // 相当于 -i
+          .exec()
 
-      // 3. 启动容器
-      dockerClient.startContainerCmd(container.getId).exec()
-      println(s"容器已启动，ID: ${container.getId}")
+        // 3. 启动容器
+        dockerClient.startContainerCmd(container.getId).exec()
+        println(s"容器已启动，ID: ${container.getId}")
 
-      container.getId
-    } finally {
-      dockerClient.close()
+        container.getId
+      } finally {
+        dockerClient.close()
+      }
     }
-  }
 
   // Array("python","op1.py")
   def nonInteractiveExec(command: Array[String], containerId: String): String = {
@@ -118,4 +122,55 @@ object DockerExecute {
       dockerClient.close()
     }
   }
+
+  def getContainerState(containerName: String): ContainerState.Value = {
+    val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+    val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
+
+    try {
+      val containers: List[Container] = dockerClient.listContainersCmd()
+        .withShowAll(true) // 显示所有容器
+        .exec()
+        .asScala
+        .toList
+
+      val foundContainer = containers.find { container =>
+        container.getNames.contains(s"/$containerName")
+      }
+
+      foundContainer match {
+        case Some(container) =>
+          if (container.getState.equalsIgnoreCase("running")) {
+            ContainerState.Running
+          } else {
+            ContainerState.Stopped
+          }
+        case None =>
+          ContainerState.NotFound
+      }
+    } finally {
+      dockerClient.close()
+    }
+  }
+
+  // 启动现有容器
+  def startExistingContainer(containerName: String): Unit = {
+    val config = DefaultDockerClientConfig.createDefaultConfigBuilder().build()
+    val dockerClient: DockerClient = DockerClientBuilder.getInstance(config).build()
+    try {
+      // 您需要先通过名字找到 ID
+      val containerId = dockerClient.listContainersCmd().withShowAll(true).exec().asScala
+        .find(_.getNames.contains(s"/$containerName"))
+        .map(_.getId)
+        .getOrElse(throw new NoSuchElementException(s"Container $containerName not found"))
+
+      dockerClient.startContainerCmd(containerId).exec()
+      println(s"已启动现有容器: $containerName (ID: $containerId)")
+    } finally {
+      dockerClient.close()
+    }
+  }
+
 }
+
+

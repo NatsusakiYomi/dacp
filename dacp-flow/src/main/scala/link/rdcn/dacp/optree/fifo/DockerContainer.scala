@@ -9,9 +9,18 @@ case class DockerContainer(
                             imageName: Option[String] = None
                           ){
   def start(): String = {
-    if(!DockerExecute.isContainerRunning(containerName)){
-      DockerExecute.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
-    } else containerName
+    DockerExecute.getContainerState(containerName) match {
+      case DockerExecute.ContainerState.Running =>
+        println(s"容器 $containerName 已经在运行。")
+        containerName
+      case DockerExecute.ContainerState.Stopped =>
+        println(s"容器 $containerName 存在但已停止，正在启动...")
+        DockerExecute.startExistingContainer(containerName) // 只启动，不创建
+        containerName
+      case DockerExecute.ContainerState.NotFound =>
+        println(s"容器 $containerName 未找到，正在创建新容器...")
+        DockerExecute.startContainer(hostPath.get, containerPath.get, containerName, imageName.get)
+    }
   }
 
   def toJson(): JSONObject = {

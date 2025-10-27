@@ -26,13 +26,15 @@ object ServerDemo {
     val tlsKeyFile: File = Paths.get(fairdHome, keyPath).toFile
     /**
      * 根据fairdHome自动读取配置文件
-     * 非加密连接
-     * val server = new FairdServer(provider.dataProvider, provider.authProvider, Paths.get(getResourcePath("")).toString())
      * tls加密连接
+     * val server = DacpServer.startTLS(new File(fairdHome), provider.dataProvider,
+     * new DataReceiver {
+     * override def receive(dataFrame: DataFrame): Unit = {}
+     * }, provider.authProvider, tlsCertFile, tlsKeyFile)
+     * 非加密连接
      */
-    val server = DacpServer.startTLS(new File(fairdHome), provider.dataProvider,
-      new DataReceiver {
-        override def receive(dataFrame: DataFrame): Unit = {}
-      }, provider.authProvider, tlsCertFile, tlsKeyFile)
+    val server = DacpServer.start(new File(fairdHome), provider.dataProvider, new DataReceiver {
+      override def receive(dataFrame: DataFrame): Unit = {}
+      }, provider.authProvider)
   }
 }
